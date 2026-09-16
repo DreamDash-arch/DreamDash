@@ -1040,7 +1040,7 @@
           <button id="lanHostBtn" class="btn primary" type="button">创建房间（我是主机）</button>
         </div>
         <div class="lan-panel">
-          <input id="lanRoomInput" class="lan-input" type="text" placeholder="房间码或主机地址，如 A7K2 / 192.168.1.5:8000" autocomplete="off">
+          <input id="lanRoomInput" class="lan-input" type="text" placeholder="房间码（如 A7K2）或主机地址（如 192.168.1.5:8000）" autocomplete="off">
           <button id="lanJoinBtn" class="btn primary" type="button">加入房间</button>
         </div>
         <div id="lanRoomInfo" class="lan-room-info hidden">
@@ -3750,7 +3750,7 @@
     };
 
     // 在线中继地址（Cloudflare Workers + Durable Objects 部署后填入）
-    const ONLINE_RELAY_WS = '';
+    const ONLINE_RELAY_WS = 'wss://dreamdash-relay.dreamdash.workers.dev/ws';
     const ONLINE_SHARE_BASE = 'https://dreamdash-arch.github.io/DreamDash/';
     const ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
@@ -3812,7 +3812,7 @@
       const text = String(raw || '').trim();
       const here = location.host;
       if (!text) return { host: here, room: '', explicit: false, secure: false };
-      if (/^[A-Za-z0-9]{4}$/.test(text)) {
+      if (/^[A-Za-z0-9]{4,8}$/.test(text) || !/[.:/]/.test(text)) {
         return { host: here, room: text.toUpperCase(), explicit: false, secure: false };
       }
       try {
@@ -4322,7 +4322,7 @@
     async function startLanGuest(raw) {
       const target = netParseTarget(raw);
       if (!target.room) {
-        netSetStatus('请输入 4 位房间码，或房主给你的完整链接', 'warn');
+        netSetStatus('请输入房间码，或房主给你的完整链接', 'warn');
         setPhase('lan');
         return;
       }

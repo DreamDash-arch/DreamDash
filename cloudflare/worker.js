@@ -49,6 +49,7 @@ export class Room {
     }
 
     this.ctx.acceptWebSocket(server, [role]);
+    server.serializeAttachment({ role });
     server.send(JSON.stringify({
       t: 'welcome',
       role,
@@ -65,33 +66,36 @@ export class Room {
     return new Response(null, { status: 101, webSocket: client });
   }
 
+  roleOf(socket) {
+    const meta = socket.deserializeAttachment && socket.deserializeAttachment();
+    return meta && meta.role === 'guest' ? 'guest' : 'host';
+  }
+
   async webSocketMessage(socket, message) {
     if (typeof message !== 'string') return;           // 只处理文本协议
     if (message.length > MAX_MESSAGE_BYTES) {
       socket.close(1009, 'message too large');
       return;
     }
-    for (const tag of socket.tags) {
-      const peer = this.ctx.getWebSockets(peerTag(tag))[0];
-      if (peer) {
-        try {
-          peer.send(message);
-        } catch (error) {
-          /* 对端已断开，忽略 */
-        }
+    const role = this.roleOf(socket);
+    const peer = this.ctx.getWebSockets(peerTag(role))[0];
+    if (peer) {
+      try {
+        peer.send(message);
+      } catch (error) {
+        /* 对端已断开，忽略 */
       }
     }
   }
 
   async webSocketClose(socket) {
-    for (const tag of socket.tags) {
-      const peer = this.ctx.getWebSockets(peerTag(tag))[0];
-      if (peer) {
-        try {
-          peer.send(JSON.stringify({ t: 'peer-left', role: tag }));
-        } catch (error) {
-          /* ignore */
-        }
+    const role = this.roleOf(socket);
+    const peer = this.ctx.getWebSockets(peerTag(role))[0];
+    if (peer) {
+      try {
+        peer.send(JSON.stringify({ t: 'peer-left', role }));
+      } catch (error) {
+        /* ignore */
       }
     }
     try {
