@@ -813,16 +813,17 @@
 
     #splitDivider.visible { display: block; }
 
-    .contact-card {
-      text-align: left;
-      padding: 18px;
-      border: 2px solid rgba(53,43,77,.42);
-      border-radius: 20px;
-      background: rgba(255,255,255,.54);
+    .contact-image {
+      display: block;
+      width: auto;
+      max-width: min(340px, 74vw);
+      max-height: 58vh;
+      margin: 4px auto 0;
+      border: 3px solid rgba(53,43,77,.55);
+      border-radius: 18px;
+      background: #fff;
+      box-shadow: 0 8px 20px rgba(63,43,82,.18);
     }
-
-    .contact-card strong { font-size: 24px; }
-    .contact-line { margin-top: 8px; font-size: 18px; font-weight: 850; }
 
     @media (max-width: 760px) {
       .talent-grid { grid-template-columns: 1fr; }
@@ -982,13 +983,8 @@
       <div class="glass">
         <div class="eyebrow">课程作品</div>
         <h2>联系作者</h2>
-        <div class="contact-card">
-          <strong>戴于祺</strong>
-          <div class="contact-line">电话：13666883545</div>
-          <p class="mini-note">《梦幻跑跑》程序化浏览器 3D 跑酷课程作品</p>
-        </div>
+        <img id="contactImage" class="contact-image" src="assets/contact.jpg" alt="联系作者">
         <div class="button-row">
-          <button id="copyContactBtn" class="btn primary" type="button">复制联系方式</button>
           <button id="contactBackBtn" class="btn ghost" type="button">返回主页</button>
         </div>
       </div>
@@ -1098,7 +1094,6 @@
       talentGrid: document.getElementById('talentGrid'),
       talentBack: document.getElementById('talentBackBtn'),
       contactScreen: document.getElementById('contactScreen'),
-      copyContact: document.getElementById('copyContactBtn'),
       contactBack: document.getElementById('contactBackBtn'),
       pauseScreen: document.getElementById('pauseScreen'),
       resume: document.getElementById('resumeBtn'),
@@ -3956,20 +3951,6 @@
       dom.skinBack.addEventListener('click', () => returnToTitle());
       dom.talentBack.addEventListener('click', () => returnToTitle());
       dom.contactBack.addEventListener('click', () => returnToTitle());
-      dom.copyContact.addEventListener('click', async () => {
-        const text = '戴于祺 13666883545';
-        try {
-          await navigator.clipboard.writeText(text);
-        } catch (error) {
-          const area = document.createElement('textarea');
-          area.value = text;
-          document.body.appendChild(area);
-          area.select();
-          document.execCommand('copy');
-          area.remove();
-        }
-        showToast('联系方式已复制', text, 'blue');
-      });
       dom.resume.addEventListener('click', () => togglePause(false));
       dom.pauseRestart.addEventListener('click', () => {
         game.paused = false;
