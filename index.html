@@ -403,7 +403,9 @@
       background: rgba(255, 251, 242, .9);
       box-shadow: 0 5px 0 rgba(53,43,77,.8);
       cursor: pointer;
-      font-size: 19px;
+      padding: 0;
+      font-size: 13px;
+      line-height: 1.1;
       font-weight: 950;
       pointer-events: auto;
     }
@@ -572,6 +574,65 @@
     }
 
     #lanScreen .glass { width: min(680px, calc(100vw - 42px)); }
+
+    #difficultyScreen .glass { width: min(760px, calc(100vw - 42px)); }
+
+    .difficulty-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 18px;
+      text-align: left;
+    }
+
+    .difficulty-card {
+      padding: 14px;
+      border: 3px solid rgba(53,43,77,.55);
+      border-radius: 18px;
+      background: rgba(255,255,255,.66);
+      cursor: pointer;
+      transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
+    }
+
+    .difficulty-card strong { display: block; font-size: 20px; font-weight: 1000; }
+    .difficulty-card small { display: block; margin-top: 6px; color: var(--ink-soft); font-size: 12px; font-weight: 750; line-height: 1.5; }
+
+    .difficulty-card.active {
+      background: linear-gradient(180deg, #fffdf0, #ffe9b8);
+      box-shadow: 0 0 0 4px rgba(246,168,201,.55);
+      transform: translateY(-2px);
+    }
+
+    #heartsHud {
+      left: 18px;
+      top: 74px;
+      gap: 4px;
+      display: none;
+    }
+
+    #heartsHud.visible { display: flex; }
+
+    .heart {
+      font-size: 20px;
+      line-height: 1;
+      color: #e66d77;
+      text-shadow: 0 2px 0 rgba(53,43,77,.25);
+    }
+
+    .heart.lost { color: rgba(53,43,77,.22); text-shadow: none; }
+
+    .difficulty-chip {
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: rgba(168,216,255,.45);
+      color: #35506e;
+      font-size: 11px;
+      font-weight: 1000;
+    }
+
+    @media (max-width: 760px) {
+      .difficulty-grid { grid-template-columns: 1fr; }
+    }
 
     .lan-panel {
       display: flex;
@@ -902,9 +963,11 @@
         <span class="counter"><span class="icon mushroom">✦</span><span id="mushroomCount2">0</span></span>
       </div>
 
+      <div id="heartsHud" class="hud-cluster" aria-label="生命值"></div>
+
       <div id="progressHud" class="hud-cluster" aria-label="路程进度">
         <div class="progress-inner">
-          <div class="progress-meta"><span>梦境小径</span><span id="progressText">0%</span></div>
+          <div class="progress-meta"><span id="difficultyChip" class="difficulty-chip">沉梦</span><span id="progressText">0%</span></div>
           <div class="progress-track"><div id="progressFill" class="progress-fill"></div></div>
         </div>
       </div>
@@ -972,6 +1035,20 @@
           <button id="contactBtn" class="btn ghost wide" type="button">联系作者</button>
         </div>
         <div class="mini-note">P1：A/D + W　·　P2：←/→ 移动，↑ 跳跃，↓ 技能</div>
+      </div>
+    </section>
+
+    <section id="difficultyScreen" class="screen">
+      <div class="glass">
+        <div class="eyebrow">单人模式</div>
+        <h2>选择梦境难度</h2>
+        <div class="mini-note">难度会影响速度、障碍密度、小怪与弹幕数量、心数与受击无敌帧。</div>
+        <div id="difficultyGrid" class="difficulty-grid"></div>
+        <div class="button-row">
+          <button id="difficultyConfirmBtn" class="btn primary" type="button">开始选角</button>
+          <button id="difficultyBackBtn" class="btn ghost" type="button">返回主页</button>
+        </div>
+        <div class="control-hint">↑ ↓ 或 A / D 选择　·　空格确认</div>
       </div>
     </section>
 
@@ -1059,7 +1136,6 @@
 
     <section id="contactScreen" class="screen">
       <div class="glass">
-        <div class="eyebrow">课程作品</div>
         <h2>联系作者</h2>
         <img id="contactImage" class="contact-image" src="assets/contact.jpg" alt="联系作者">
         <div class="button-row">
@@ -1126,6 +1202,12 @@
       titleTotalStars: document.getElementById('titleTotalStars'),
       titleTotalRuns: document.getElementById('titleTotalRuns'),
       titleBestStars: document.getElementById('titleBestStars'),
+      difficultyScreen: document.getElementById('difficultyScreen'),
+      difficultyGrid: document.getElementById('difficultyGrid'),
+      difficultyConfirm: document.getElementById('difficultyConfirmBtn'),
+      difficultyBack: document.getElementById('difficultyBackBtn'),
+      heartsHud: document.getElementById('heartsHud'),
+      difficultyChip: document.getElementById('difficultyChip'),
       skins: document.getElementById('skinScreen'),
       skinName: document.getElementById('skinName'),
       skinCondition: document.getElementById('skinCondition'),
@@ -1215,6 +1297,33 @@
       checkpoints: [0, 700, 1400, 2100, 2800, 3500, 4200, 4900, 5600, 6280]
     };
 
+    const DIFFICULTY_DEFS = [
+      {
+        id: 'nap', name: '小憩', color: '#9de0c1',
+        desc: '速度 ×0.85 · 障碍 45% · 1 只小怪 · 单发弹幕 · 5 心 · 无敌帧 2.0s',
+        speed: 0.85, obstacleRate: 0.45, enemyMax: 1, bullets: 1, hearts: 5, iframe: 2.0, fireInterval: 2.2
+      },
+      {
+        id: 'dream', name: '沉梦', color: '#a8d8ff',
+        desc: '速度 ×1.0 · 障碍 85% · 2 只小怪 · 三发弹幕 · 3 心 · 无敌帧 1.2s',
+        speed: 1.0, obstacleRate: 0.85, enemyMax: 2, bullets: 3, hearts: 3, iframe: 1.2, fireInterval: 1.9
+      },
+      {
+        id: 'illusion', name: '幻梦', color: '#ffd166',
+        desc: '速度 ×1.2 · 障碍全开 · 4 只小怪 · 六发弹幕 · 3 心 · 无敌帧 0.9s',
+        speed: 1.2, obstacleRate: 1.0, enemyMax: 4, bullets: 6, hearts: 3, iframe: 0.9, fireInterval: 1.6
+      },
+      {
+        id: 'nightmare', name: '噩梦', color: '#ff9f68',
+        desc: '速度 ×1.35 · 障碍全开 · 6 只小怪 · 九发弹幕 · 3 心 · 无敌帧 0.7s',
+        speed: 1.35, obstacleRate: 1.0, enemyMax: 6, bullets: 9, hearts: 3, iframe: 0.7, fireInterval: 1.3
+      }
+    ];
+
+    function difficultyDef(id) {
+      return DIFFICULTY_DEFS.find((item) => item.id === id) || DIFFICULTY_DEFS[1];
+    }
+
     const TASKS = {
       stars: { id: 'stars', label: '收集地图上的 5 颗星星', short: '收集星星', target: 5, counter: 'stars' },
       mushrooms: { id: 'mushrooms', label: '找到隐藏的 3 个发光蘑菇', short: '寻找蘑菇', target: 3, counter: 'mushrooms' },
@@ -1260,7 +1369,20 @@
       orb: {
         name: '法师变羊', short: '变羊', color: 0xd7b3ff, stamina: 1, cooldown: 1.25,
         speed: 28, range: 110, radius: 3.4, sheepTime: 2.4
+      },
+      swordwave: {
+        name: '骑士剑气', short: '剑气', color: 0xbfe0ff, stamina: 1, cooldown: 3,
+        speed: 42, range: 40, radius: 3.2
+      },
+      guard: {
+        name: '法师无敌', short: '无敌', color: 0xd7b3ff, stamina: 1, cooldown: 10, duration: 6
       }
+    };
+
+    // 单人模式使用 PvE 技能，双人与局域网保持对抗技能
+    const SKILL_BY_MODE = {
+      single: { knight: 'swordwave', mage: 'guard', barbarian: 'grow', rogue: 'roll' },
+      duo: { knight: 'slash', mage: 'orb', barbarian: 'grow', rogue: 'roll' }
     };
 
     // KayKit 角色自带多件武器挂件，每个角色只保留一件，避免手上武器重叠。
@@ -1292,7 +1414,7 @@
     const TRAP_DEFS = {
       banana: { name: '香蕉皮', short: '滑移', duration: 2.8, color: '#ffd166' },
       reverse: { name: '致幻蘑菇', short: '反向', duration: 5, color: '#c5b8f5' },
-      ink: { name: '墨鱼', short: '墨迹', duration: 4, color: '#544b6d' },
+      ink: { name: '墨鱼', short: '墨迹', duration: 8, color: '#544b6d' },
       giant: { name: '巨大蘑菇', short: '巨大', duration: 6, color: '#ff9f68' }
     };
 
@@ -1332,7 +1454,7 @@
 
     const DEFAULT_SKINS = { unlocked: ['cloud'], selected: 'cloud' };
     const DEFAULT_CHARACTERS = { selectedP1: 'knight', selectedP2: 'mage' };
-    const DEFAULT_SETTINGS = { muted: false };
+    const DEFAULT_SETTINGS = { muted: false, difficulty: 'dream' };
     const DEFAULT_TALENTS = { points: 0, unlocked: ['root'] };
 
     const params = new URLSearchParams(window.location.search);
@@ -1422,7 +1544,11 @@
     }
 
     function normalizeSettings(value) {
-      return { muted: Boolean(value && value.muted) };
+      const ids = DIFFICULTY_DEFS.map((item) => item.id);
+      return {
+        muted: Boolean(value && value.muted),
+        difficulty: ids.includes(value && value.difficulty) ? value.difficulty : 'dream'
+      };
     }
 
     function normalizeTalents(value) {
@@ -1492,8 +1618,8 @@
       return best;
     }
 
-    function ratingFor(missionComplete, stars) {
-      return missionComplete && stars >= LEVEL.aStarTarget ? 'A' : 'B';
+    function ratingFor(missionComplete, stars, deaths = 0) {
+      return missionComplete && stars >= LEVEL.aStarTarget && deaths === 0 ? 'A' : 'B';
     }
 
     function missionCounterValue(run, missionId) {
@@ -1521,6 +1647,7 @@
 
     function hideAllMenus() {
       setScreen(dom.title, false);
+      setScreen(dom.difficultyScreen, false);
       setScreen(dom.skins, false);
       setScreen(dom.countdown, false);
       setScreen(dom.result, false);
@@ -1727,7 +1854,12 @@
       shake: 0,
       splitScreen: false,
       modelsLoaded: false,
-      characterPick: { step: 0, count: 1, menuOnly: false }
+      characterPick: { step: 0, count: 1, menuOnly: false },
+      difficulty: savedState.settings.difficulty,
+      difficultyCursor: 0,
+      enemySpawnTimer: 2,
+      enemySide: 1,
+      iframeTimer: 0
     };
 
     const run = {
@@ -1741,7 +1873,10 @@
       active: false,
       settled: false,
       finishing: false,
-      checkpointIndex: 0
+      checkpointIndex: 0,
+      deaths: 0,
+      destroyed: 0,
+      halfShown: false
     };
 
     function createPlayerState(id) {
@@ -1796,6 +1931,7 @@
         sheepTime: 0,
         sheepTotal: 0,
         questionHintAt: 0,
+        hearts: 3,
         pickupLog: []
       };
     }
@@ -1845,6 +1981,8 @@
       projectiles: [],
       powerProjectiles: [],
       slashEffects: [],
+      enemies: [],
+      enemyBullets: [],
       inkScene: null,
       inkCamera: null,
       inkQuad: null,
@@ -2274,6 +2412,7 @@
       createFloatingIslands();
       createParticlePool();
       createInkFog();
+      createEnemyPool();
       resetRun(false);
       updateCharacterPreview(true);
       updateCamera(0.016);
@@ -3551,6 +3690,12 @@
         dom.hud.classList.remove('visible');
         dom.ink.classList.remove('visible');
         setPhaseModels('preview');
+      } else if (phase === 'difficulty') {
+        hideAllMenus();
+        setScreen(dom.difficultyScreen, true);
+        dom.hud.classList.remove('visible');
+        setPhaseModels('preview');
+        renderDifficultyPanel();
       } else if (phase === 'skins') {
         hideAllMenus();
         setScreen(dom.skins, true);
@@ -3604,7 +3749,7 @@
       game.pendingCharacterReturn = false;
       setSplitScreen(false);
       if (dom.hint) dom.hint.textContent = 'P1：A/D 移动，W 跳，Q 角色技能，S 问号道具';
-      beginCharacterSelection(1, true);
+      beginDifficultySelection();
     }
 
     function startDuoMode() {
@@ -4361,6 +4506,40 @@
       if (dom.lanStartBtn) dom.lanStartBtn.disabled = true;
     }
 
+    function beginDifficultySelection() {
+      game.difficultyCursor = Math.max(0, DIFFICULTY_DEFS.findIndex((item) => item.id === savedState.settings.difficulty));
+      setPhase('difficulty');
+    }
+
+    function renderDifficultyPanel() {
+      if (!dom.difficultyGrid) return;
+      const cursor = clamp(game.difficultyCursor || 0, 0, DIFFICULTY_DEFS.length - 1);
+      dom.difficultyGrid.innerHTML = '';
+      DIFFICULTY_DEFS.forEach((def, index) => {
+        const card = document.createElement('button');
+        card.type = 'button';
+        card.className = `difficulty-card${index === cursor ? ' active' : ''}`;
+        card.innerHTML = `<strong>${def.name}</strong><small>${def.desc}</small>`;
+        card.addEventListener('click', () => { game.difficultyCursor = index; renderDifficultyPanel(); });
+        card.addEventListener('dblclick', () => { game.difficultyCursor = index; confirmDifficulty(); });
+        dom.difficultyGrid.appendChild(card);
+      });
+    }
+
+    function selectDifficulty(direction) {
+      game.difficultyCursor = (clamp(game.difficultyCursor || 0, 0, DIFFICULTY_DEFS.length - 1) + direction + DIFFICULTY_DEFS.length) % DIFFICULTY_DEFS.length;
+      renderDifficultyPanel();
+      playTone({ frequency: direction > 0 ? 880 : 760, duration: 0.08, type: 'sine', volume: 0.11 });
+    }
+
+    function confirmDifficulty() {
+      const def = DIFFICULTY_DEFS[clamp(game.difficultyCursor || 0, 0, DIFFICULTY_DEFS.length - 1)];
+      game.difficulty = def.id;
+      savedState.settings.difficulty = def.id;
+      saveSettings();
+      beginCharacterSelection(1, true);
+    }
+
     function seedFromTime() {
       return (Date.now() ^ Math.floor(Math.random() * 0xffffffff)) >>> 0;
     }
@@ -4491,6 +4670,271 @@
       }
     }
 
+    function createEnemyMesh() {
+      const group = new THREE.Group();
+      const bodyMaterial = new THREE.MeshStandardMaterial({
+        color: 0xb07ae0, emissive: 0x6d43a8, emissiveIntensity: 0.45, roughness: 0.55
+      });
+      const body = outlinedMesh(cachedGeometry('enemyBody', () => new THREE.SphereGeometry(0.9, 12, 9)), bodyMaterial, 1.05);
+      group.add(body);
+      const eyeGeometry = cachedGeometry('enemyEye', () => new THREE.SphereGeometry(0.15, 8, 6));
+      for (const x of [-0.3, 0.3]) {
+        const eye = new THREE.Mesh(eyeGeometry, materials.eye);
+        eye.position.set(x, 0.18, 0.78);
+        group.add(eye);
+      }
+      const ring = new THREE.Mesh(
+        cachedGeometry('enemyRing', () => new THREE.TorusGeometry(1.28, 0.07, 5, 20)),
+        new THREE.MeshBasicMaterial({ color: 0xffc7f0 })
+      );
+      ring.rotation.x = Math.PI / 2;
+      ring.position.y = -0.15;
+      group.add(ring);
+      group.visible = false;
+      scene.add(group);
+      return group;
+    }
+
+    function createEnemyPool() {
+      for (let i = 0; i < 6; i += 1) {
+        world.enemies.push({
+          index: i, group: createEnemyMesh(), active: false,
+          x: 0, y: 0, z: 0, fireTimer: 2, phase: rand(0, Math.PI * 2)
+        });
+      }
+      const bulletGeometry = cachedGeometry('enemyBullet', () => new THREE.SphereGeometry(0.42, 8, 6));
+      const bulletMaterial = new THREE.MeshStandardMaterial({
+        color: 0xff7ad0, emissive: 0xff3fa8, emissiveIntensity: 0.9, roughness: 0.4
+      });
+      for (let i = 0; i < 90; i += 1) {
+        const mesh = outlinedMesh(bulletGeometry, bulletMaterial, 1.08);
+        mesh.visible = false;
+        scene.add(mesh);
+        world.enemyBullets.push({
+          index: i, mesh, active: false, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, traveled: 0
+        });
+      }
+    }
+
+    function deactivateEnemy(enemy) {
+      enemy.active = false;
+      enemy.group.visible = false;
+    }
+
+    function deactivateAllEnemies() {
+      world.enemies.forEach(deactivateEnemy);
+    }
+
+    function deactivateBullet(bullet) {
+      bullet.active = false;
+      bullet.mesh.visible = false;
+    }
+
+    function clearEnemyBullets() {
+      world.enemyBullets.forEach(deactivateBullet);
+    }
+
+    function spawnEnemyAt(z) {
+      const enemy = world.enemies.find((item) => !item.active);
+      if (!enemy) return null;
+      game.enemySide *= -1;
+      const side = game.enemySide;
+      enemy.x = centerX(z) + side * rand(7, 10);
+      enemy.z = z;
+      enemy.y = pathY(z) + 3.5;
+      enemy.fireTimer = rand(0.9, 2.0);
+      enemy.phase = rand(0, Math.PI * 2);
+      enemy.active = true;
+      enemy.group.position.set(enemy.x, enemy.y, enemy.z);
+      enemy.group.visible = true;
+      return enemy;
+    }
+
+    function spawnEnemyBullet(origin, dir, speed) {
+      const bullet = world.enemyBullets.find((item) => !item.active);
+      if (!bullet) return null;
+      bullet.active = true;
+      bullet.x = origin.x;
+      bullet.y = origin.y;
+      bullet.z = origin.z;
+      bullet.vx = dir.x * speed;
+      bullet.vy = dir.y * speed;
+      bullet.vz = dir.z * speed;
+      bullet.traveled = 0;
+      bullet.mesh.position.set(bullet.x, bullet.y, bullet.z);
+      bullet.mesh.visible = true;
+      return bullet;
+    }
+
+    function fireEnemyFan(enemy, def) {
+      const origin = new THREE.Vector3(enemy.x, enemy.y - 0.15, enemy.z);
+      const aim = new THREE.Vector3(player.x, player.y + 1.3 * player.sizeScale, player.z + 2).sub(origin);
+      if (aim.lengthSq() < 0.0001) return;
+      aim.normalize();
+      const count = Math.max(1, def.bullets);
+      const halfSpread = count <= 1 ? 0 : 0.279 + clamp((count - 3) / 6, 0, 1) * 0.419;
+      for (let i = 0; i < count; i += 1) {
+        const t = count === 1 ? 0 : (i / (count - 1)) * 2 - 1;
+        const angle = t * halfSpread;
+        const cos = Math.cos(angle);
+        const sin = Math.sin(angle);
+        const dir = new THREE.Vector3(
+          aim.x * cos - aim.z * sin,
+          aim.y,
+          aim.x * sin + aim.z * cos
+        ).normalize();
+        spawnEnemyBullet(origin, dir, 17);
+      }
+      playTone({ frequency: 520, slideTo: 240, duration: 0.12, type: 'square', volume: 0.06 });
+    }
+
+    function updateEnemies(dt) {
+      if (game.mode !== 'single') {
+        if (world.enemies.some((enemy) => enemy.active)) deactivateAllEnemies();
+        if (world.enemyBullets.some((bullet) => bullet.active)) clearEnemyBullets();
+        return;
+      }
+      const def = difficultyDef(game.difficulty);
+      const running = game.phase === 'running' && run.active;
+      if (running) {
+        game.enemySpawnTimer -= dt;
+        const activeCount = world.enemies.filter((enemy) => enemy.active).length;
+        if (game.enemySpawnTimer <= 0 && activeCount < def.enemyMax) {
+          spawnEnemyAt(player.z + rand(120, 260));
+          game.enemySpawnTimer = rand(4, 6);
+        }
+      }
+      for (const enemy of world.enemies) {
+        if (!enemy.active) continue;
+        if (!running || enemy.z - player.z > 340 || player.z - enemy.z > 40) {
+          deactivateEnemy(enemy);
+          continue;
+        }
+        enemy.phase += dt * 2.4;
+        enemy.group.position.y = enemy.y + Math.sin(enemy.phase) * 0.22;
+        enemy.group.rotation.y += dt * 0.9;
+        const dz = enemy.z - player.z;
+        if (dz > 2 && dz < 60) {
+          enemy.fireTimer -= dt;
+          if (enemy.fireTimer <= 0) {
+            fireEnemyFan(enemy, def);
+            enemy.fireTimer = def.fireInterval * rand(0.9, 1.15);
+          }
+        }
+      }
+      updateEnemyBullets(dt);
+    }
+
+    function updateEnemyBullets(dt) {
+      for (const bullet of world.enemyBullets) {
+        if (!bullet.active) continue;
+        bullet.x += bullet.vx * dt;
+        bullet.y += bullet.vy * dt;
+        bullet.z += bullet.vz * dt;
+        bullet.traveled += Math.hypot(bullet.vx, bullet.vy, bullet.vz) * dt;
+        bullet.mesh.position.set(bullet.x, bullet.y, bullet.z);
+        if (bullet.traveled > 60 || bullet.z < player.z - 25) {
+          deactivateBullet(bullet);
+          continue;
+        }
+        const radius = 0.9 + 0.42 * clamp(player.sizeScale, 0.5, 8);
+        const dx = bullet.x - player.x;
+        const dy = bullet.y - (player.y + 1.3 * player.sizeScale);
+        const dz = bullet.z - player.z;
+        if (dx * dx + dy * dy + dz * dz <= radius * radius) {
+          deactivateBullet(bullet);
+          damagePlayer(1);
+        }
+      }
+    }
+
+    function damagePlayer(amount = 1) {
+      if (game.mode !== 'single' || game.phase !== 'running' || !run.active) return false;
+      if (game.iframeTimer > 0 || player.recoveryTime > 0 || hasEffect(player, 'invincible')) return false;
+      const def = difficultyDef(game.difficulty);
+      player.hearts = Math.max(0, (player.hearts || 0) - amount);
+      game.iframeTimer = def.iframe;
+      game.shake = Math.max(game.shake || 0, 0.16);
+      player.vx += (Math.random() < 0.5 ? -1 : 1) * 4.5;
+      player.forwardBonus = clamp(player.forwardBonus - 3, -12, 12);
+      spawnBurst(new THREE.Vector3(player.x, player.y + 1.6, player.z), 0xff8fc7, 14, 6.0, 0.7);
+      playTone({ frequency: 300, slideTo: 140, duration: 0.2, type: 'square', volume: 0.1 });
+      if (player.hearts <= 0) dieAndRespawn();
+      else showToast('受到伤害！', `剩余 ${player.hearts} 颗心`, 'pink');
+      updateHud();
+      return true;
+    }
+
+    function dieAndRespawn() {
+      run.deaths += 1;
+      const index = nearestCheckpointIndex(player.z);
+      run.checkpointIndex = Math.max(run.checkpointIndex || 0, index);
+      const z = LEVEL.checkpoints[index];
+      player.x = centerX(z);
+      player.y = pathY(z) + 0.06;
+      player.z = z + 1.2;
+      player.vx = 0;
+      player.vy = 0;
+      player.forwardBonus = 0;
+      player.grounded = true;
+      player.jumpsUsed = 0;
+      player.hearts = difficultyDef(game.difficulty).hearts;
+      game.iframeTimer = 1.5;
+      clearEnemyBullets();
+      deactivateAllEnemies();
+      game.enemySpawnTimer = 3;
+      spawnBurst(new THREE.Vector3(player.x, player.y + 1.5, player.z), 0xffffff, 22, 7.0, 1.0);
+      playSfx('checkpoint');
+      showToast('阵亡！', '从最近检查点复活，收集物都还在。', 'pink');
+      updateHud();
+    }
+
+    function registerDestroy() {
+      run.destroyed += 1;
+      if (run.destroyed >= 3) {
+        run.destroyed -= 3;
+        run.coins += 3;
+        player.coins += 3;
+        showToast('障碍转化为金币！', '+3 金币', 'gold');
+        playSfx('coin');
+      }
+      updateHud();
+    }
+
+    function destroyObstacle(obstacle) {
+      if (obstacle.destroyed) return false;
+      obstacle.destroyed = true;
+      obstacle.cooldown = 999;
+      obstacle.group.visible = false;
+      spawnBurst(new THREE.Vector3(obstacle.x, obstacle.groundY + 1.2, obstacle.z), 0xffd166, 16, 6.4, 0.8);
+      playSfx('jelly');
+      registerDestroy();
+      return true;
+    }
+
+    function destroyEnemy(enemy) {
+      if (!enemy.active) return false;
+      const position = enemy.group.position.clone();
+      deactivateEnemy(enemy);
+      spawnBurst(position, 0xff8fc7, 18, 7.0, 0.9);
+      playSfx('pop');
+      registerDestroy();
+      return true;
+    }
+
+    function isCrushing(p) {
+      return hasEffect(p, 'giantSkill') || hasEffect(p, 'giant');
+    }
+
+    function playerOverlapsObstacle(p, obstacle) {
+      const scale = clamp(p.sizeScale, 0.5, 8);
+      const dx = p.x - obstacle.x;
+      const dz = p.z - obstacle.z;
+      const reach = obstacle.radius * Math.max(1, scale * 0.55) + 1.1 * scale;
+      if (dx * dx + dz * dz > reach * reach) return false;
+      return p.y + 3.4 * scale > obstacle.groundY - 1.2 && p.y < obstacle.groundY + 6.4 * scale;
+    }
+
     function resetRun(selectMission = true, seedOverride = null) {
       if (selectMission) run.missionId = chooseMission();
       run.stars = 0;
@@ -4503,6 +4947,9 @@
       run.finishing = false;
       run.settled = false;
       run.checkpointIndex = 0;
+      run.deaths = 0;
+      run.destroyed = 0;
+      run.halfShown = false;
       game.elapsed = 0;
       game.accumulator = 0;
       game.countdownTime = 0;
@@ -4524,6 +4971,12 @@
         if (pad.group) pad.group.visible = pad.active;
       });
       players.forEach((p, index) => resetPlayerState(p, index));
+      player.hearts = difficultyDef(game.difficulty).hearts;
+      game.iframeTimer = 0;
+      game.enemySpawnTimer = 2;
+      game.enemySide = 1;
+      deactivateAllEnemies();
+      clearEnemyBullets();
       inputs.forEach((item) => { item.left = false; item.right = false; item.jumpQueued = false; item.jumpHeld = false; });
 
       world.collectibles.forEach((item) => {
@@ -4539,10 +4992,12 @@
         item.userData.collectedAt = 0;
         item.visible = true;
       });
+      const obstacleRate = game.mode === 'single' ? difficultyDef(game.difficulty).obstacleRate : 0.88;
       world.obstacles.forEach((obstacle) => {
         obstacle.cooldown = 0;
+        obstacle.destroyed = false;
         obstacle.group.visible = true;
-        obstacle.runEnabled = game.rng() > 0.12;
+        obstacle.runEnabled = game.rng() < obstacleRate;
         obstacle.group.scale.set(1, 1, 1);
         if (obstacle.body) obstacle.body.scale.set(1.18, 0.88, 1);
         if (obstacle.cap) obstacle.cap.scale.set(1.16, 0.72, 1.16);
@@ -4610,7 +5065,7 @@
       const key = event.key;
       const code = event.code;
       const movementCodes = [
-        'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Space',
+        'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Space', 'Enter', 'NumpadEnter',
         'Numpad4', 'Numpad6', 'Numpad8', 'Numpad2', 'Numpad0', 'NumpadDown'
       ];
       if (movementCodes.includes(code)) event.preventDefault();
@@ -4649,6 +5104,13 @@
         return;
       }
 
+      if (game.phase === 'difficulty') {
+        if (code === 'ArrowUp' || code === 'KeyA') selectDifficulty(-1);
+        else if (code === 'ArrowDown' || code === 'KeyD') selectDifficulty(1);
+        else if (code === 'Space' || code === 'Enter' || code === 'NumpadEnter') confirmDifficulty();
+        else if (code === 'Escape') returnToTitle();
+        return;
+      }
       if (game.phase === 'skins') {
         const duoPick = Boolean(game.characterPick && game.characterPick.count > 1);
         if (code === 'KeyA') selectCharacter(0, -1);
@@ -4727,6 +5189,8 @@
         beginCharacterSelection(1, false);
       });
       dom.contactButton.addEventListener('click', () => { ensureAudio(); setPhase('contact'); });
+      if (dom.difficultyConfirm) dom.difficultyConfirm.addEventListener('click', () => { ensureAudio(); confirmDifficulty(); });
+      if (dom.difficultyBack) dom.difficultyBack.addEventListener('click', () => { netTeardownToTitle(); returnToTitle(); });
       dom.lanButton.addEventListener('click', () => {
         ensureAudio();
         netSetStatus('在线房间：朋友点链接即可加入；也可以在本机运行 server.py 做局域网直连。');
@@ -4910,7 +5374,9 @@
 
     function characterSkillFor(p) {
       const def = characterDef(p && p.model ? p.model.characterId : undefined);
-      return (def && CHARACTER_SKILLS[def.skill]) || CHARACTER_SKILLS.slash;
+      const table = game.mode === 'single' ? SKILL_BY_MODE.single : SKILL_BY_MODE.duo;
+      const id = (def && table[def.id]) || 'slash';
+      return CHARACTER_SKILLS[id] || CHARACTER_SKILLS.slash;
     }
 
     function skillLabel(p) {
@@ -4955,6 +5421,30 @@
         if (p.model.visual) p.model.visual.visible = true;
       }
       spawnBurst(new THREE.Vector3(p.x, p.y + 1.2, p.z), 0xd7b3ff, 14, 5.0, 0.7);
+    }
+
+    function spawnSwordWave(p, skill) {
+      const group = new THREE.Group();
+      const arcMaterial = new THREE.MeshBasicMaterial({ color: skill.color, transparent: true, opacity: 0.9, side: THREE.DoubleSide });
+      const arc = new THREE.Mesh(cachedGeometry('swordWaveArc', () => new THREE.TorusGeometry(2.1, 0.22, 6, 22, Math.PI * 1.1)), arcMaterial);
+      arc.rotation.x = Math.PI / 2;
+      arc.rotation.z = -0.55;
+      group.add(arc);
+      const core = new THREE.Mesh(
+        cachedGeometry('swordWaveCore', () => new THREE.BoxGeometry(3.8, 0.18, 0.5)),
+        new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.75 })
+      );
+      group.add(core);
+      group.position.set(p.x, p.y + 1.6, p.z + 1.6);
+      group.userData = {
+        kind: 'sword', skill: 'sword', visualOnly: false,
+        ownerId: p.id, targetId: p.id === 0 ? 1 : 0,
+        speed: skill.speed, range: skill.range, radius: skill.radius,
+        dirX: 0, dirZ: 1, traveled: 0, color: skill.color
+      };
+      scene.add(group);
+      world.powerProjectiles.push(group);
+      return group;
     }
 
     function spawnSkillProjectile(p, skill, visualOnly = false) {
@@ -5024,6 +5514,21 @@
         spawnBurst(new THREE.Vector3(p.x, p.y + 2.4, p.z), skill.color, 24, 8.5, 1.0);
         showToast('蛮人变大！', '体型 500%，推挤更有分量', 'blue');
         playTone({ frequency: 200, slideTo: 460, duration: 0.34, type: 'triangle', volume: 0.14 });
+        return true;
+      }
+      if (skill === CHARACTER_SKILLS.swordwave) {
+        spawnSwordWave(p, skill);
+        spawnBurst(new THREE.Vector3(p.x, p.y + 1.6, p.z + 1.4), skill.color, 12, 5.5, 0.6);
+        playTone({ frequency: 620, slideTo: 1250, duration: 0.22, type: 'sawtooth', volume: 0.11 });
+        return true;
+      }
+      if (skill === CHARACTER_SKILLS.guard) {
+        p.effects.invincible = {
+          id: 'invincible', buff: true, time: skill.duration, duration: skill.duration, charges: 0
+        };
+        spawnBurst(new THREE.Vector3(p.x, p.y + 2.2, p.z), skill.color, 22, 7.5, 1.0);
+        showToast('法师无敌！', '6 秒内免疫并穿过障碍与弹幕', 'blue');
+        playTone({ frequency: 540, slideTo: 1040, duration: 0.3, type: 'sine', volume: 0.13 });
         return true;
       }
       if (skill === CHARACTER_SKILLS.roll) {
@@ -5237,6 +5742,39 @@
         const projectile = world.powerProjectiles[i];
         const data = projectile.userData;
         if (game.phase !== 'running' || game.paused) continue;
+
+        // 骑士剑气：单人模式直线穿透，沿途摧毁障碍与小怪
+        if (data.skill === 'sword') {
+          projectile.position.x += data.dirX * data.speed * dt;
+          projectile.position.z += data.dirZ * data.speed * dt;
+          projectile.rotation.y += dt * 8;
+          data.traveled += data.speed * dt;
+          if (game.mode === 'single') {
+            for (const obstacle of world.obstacles) {
+              if (obstacle.destroyed || !obstacle.group.visible) continue;
+              if (Math.abs(obstacle.z - projectile.position.z) < data.radius + 1.4 &&
+                  Math.abs(obstacle.x - projectile.position.x) < data.radius + 1.6 &&
+                  Math.abs(obstacle.groundY - projectile.position.y) < data.radius + 4.5) {
+                destroyObstacle(obstacle);
+              }
+            }
+            for (const enemy of world.enemies) {
+              if (!enemy.active) continue;
+              if (Math.abs(enemy.z - projectile.position.z) < data.radius + 1.6 &&
+                  Math.abs(enemy.x - projectile.position.x) < data.radius + 2.2 &&
+                  Math.abs(enemy.y - projectile.position.y) < data.radius + 2.6) {
+                destroyEnemy(enemy);
+              }
+            }
+          }
+          if (data.traveled > data.range) {
+            removePowerProjectile(projectile);
+            continue;
+          }
+          if (Math.random() < 0.3) spawnBurst(projectile.position, data.color, 1, 1.2, 0.3);
+          continue;
+        }
+
         const target = players[data.targetId];
         const owner = players[data.ownerId];
         if (!target || !target.active || !owner) {
@@ -5244,23 +5782,17 @@
           continue;
         }
         if (data.visualOnly) {
-          const dir = new THREE.Vector3(target.x - projectile.position.x, target.y + 1.6 - projectile.position.y, target.z - projectile.position.z);
-          const dist = dir.length();
-          if (dist > 0.001) {
-            dir.normalize();
-            projectile.position.addScaledVector(dir, data.speed * dt);
+          if (data.skill === 'orb') {
+            const dir = new THREE.Vector3(target.x - projectile.position.x, target.y + 1.6 - projectile.position.y, target.z - projectile.position.z);
+            if (dir.lengthSq() > 0.0001) projectile.position.addScaledVector(dir.normalize(), data.speed * dt);
+          } else {
+            projectile.position.x += data.dirX * data.speed * dt;
+            projectile.position.z += data.dirZ * data.speed * dt;
+            projectile.rotation.x += dt * 5;
           }
-          data.traveled = (data.traveled || 0) + data.speed * dt;
-          if (data.traveled > 90) removeProjectile(projectile);
-          continue;
-        }
-        if (data.visualOnly) {
-          projectile.position.x += data.dirX * data.speed * dt;
-          projectile.position.z += data.dirZ * data.speed * dt;
           projectile.rotation.y += dt * 8;
-          projectile.rotation.x += dt * 5;
-          data.traveled += data.speed * dt;
-          if (data.traveled > data.range) removePowerProjectile(projectile);
+          data.traveled = (data.traveled || 0) + data.speed * dt;
+          if (data.traveled > 90) removePowerProjectile(projectile);
           continue;
         }
         const hitDx = projectile.position.x - target.x;
@@ -5323,6 +5855,23 @@
       render(dom.effectsP2, players[1]);
     }
 
+    function renderHeartsHud() {
+      if (!dom.heartsHud) return;
+      const single = game.mode === 'single';
+      dom.heartsHud.classList.toggle('visible', single);
+      if (!single) {
+        dom.heartsHud.innerHTML = '';
+        return;
+      }
+      const def = difficultyDef(game.difficulty);
+      const hearts = clamp(player.hearts || 0, 0, def.hearts);
+      let html = '';
+      for (let i = 0; i < def.hearts; i += 1) {
+        html += `<span class="heart${i < hearts ? '' : ' lost'}">♥</span>`;
+      }
+      dom.heartsHud.innerHTML = html;
+    }
+
     function renderSkillHud() {
       const render = (container, p) => {
         if (!container) return;
@@ -5335,7 +5884,7 @@
         const questionKey = p.id === 0 ? 'S' : '↓';
         const question = game.mode === 'duo'
           ? `<div class="skill-extra${p.questionCharges > 0 ? '' : ' empty'}">问号道具 ×${p.questionCharges} · 按 ${questionKey} 发射</div>`
-          : '';
+          : `<div class="skill-extra${run.destroyed > 0 ? '' : ' empty'}">摧毁 ${run.destroyed}/3 · 满 3 个转 3 金币</div>`;
         container.innerHTML = `
           <div class="skill-wrap ${ready ? 'ready' : ''}">
             <div class="skill-head">
@@ -5487,6 +6036,8 @@
       dom.progressHud.classList.toggle('visible', !duo);
       dom.missionHud.style.display = duo ? 'none' : 'flex';
       dom.effectsP2.style.visibility = duo ? 'visible' : 'hidden';
+      if (dom.difficultyChip) dom.difficultyChip.textContent = difficultyDef(game.difficulty).name;
+      renderHeartsHud();
       renderEffectHud();
       renderSkillHud();
     }
@@ -5513,7 +6064,7 @@
         item.visible = item.userData.active && visible(item.userData.zone);
       });
       world.obstacles.forEach((obstacle) => {
-        obstacle.group.visible = obstacle.runEnabled !== false && visible(obstacle.zone || 0);
+        obstacle.group.visible = !obstacle.destroyed && obstacle.runEnabled !== false && visible(obstacle.zone || 0);
       });
     }
 
@@ -5752,7 +6303,15 @@
         const other = players[p.id === 0 ? 1 : 0];
         if (other.active && other.z - p.z > 80) baseSpeed *= 1.15;
       }
+      if (game.mode === 'single') baseSpeed *= difficultyDef(game.difficulty).speed;
       if (cloudTalent) baseSpeed *= 1.2;
+      if (p.z >= LEVEL.finishLine * 0.5) {
+        baseSpeed *= 1.2;
+        if (!run.halfShown) {
+          run.halfShown = true;
+          showToast('赛程已过半', '后半程速度再提升 20%！', 'gold');
+        }
+      }
       const speed = baseSpeed * speedMultiplier(p);
       p.forwardBonus = lerp(p.forwardBonus, 0, 1 - Math.exp(-2.25 * dt));
       p.z += (speed + p.forwardBonus) * dt;
@@ -5859,7 +6418,12 @@
     function resolveObstacleInteractions(p, dt) {
       for (const obstacle of world.obstacles) {
         obstacle.cooldown = Math.max(0, obstacle.cooldown - dt);
-        if (!obstacle.group.visible || obstacle.cooldown > 0 || obstacle.runEnabled === false) continue;
+        if (obstacle.destroyed || !obstacle.group.visible || obstacle.cooldown > 0 || obstacle.runEnabled === false) continue;
+        if (game.mode === 'single' && hasEffect(p, 'invincible')) continue;
+        if (game.mode === 'single' && isCrushing(p) && playerOverlapsObstacle(p, obstacle)) {
+          destroyObstacle(obstacle);
+          continue;
+        }
         const dx = p.x - obstacle.x;
         const dz = p.z - obstacle.z;
         const horizontalSq = dx * dx + dz * dz;
@@ -6029,7 +6593,7 @@
       }
       const progress = missionProgress(run, run.missionId);
       run.missionComplete = progress.complete;
-      run.rating = ratingFor(run.missionComplete, run.stars);
+      run.rating = ratingFor(run.missionComplete, run.stars, run.deaths);
       savedState.stats.totalStars += run.stars;
       savedState.stats.totalCoins += run.coins;
       savedState.stats.totalMushrooms += run.mushrooms;
@@ -6094,13 +6658,13 @@
       dom.resultCoins.textContent = String(run.coins);
       dom.resultMushrooms.textContent = String(run.mushrooms);
       dom.resultGrid2.innerHTML = '';
-      dom.unlockMessage.textContent = `累计星光 ${savedState.stats.totalStars} · 天赋点 ${savedState.talents.points} · 角色 ${characterDef(savedState.characters.selectedP1).name}。`;
+      dom.unlockMessage.textContent = `难度 ${difficultyDef(game.difficulty).name} · 阵亡 ${run.deaths} 次 · 累计星光 ${savedState.stats.totalStars} · 天赋点 ${savedState.talents.points}。`;
       dom.changeHat.disabled = false;
     }
 
     function updateObstacles(dt) {
       for (const obstacle of world.obstacles) {
-        if (!obstacle.group.visible) continue;
+        if (obstacle.destroyed || !obstacle.group.visible) continue;
         const wave = Math.sin(game.elapsed * 2.15 + obstacle.phase);
         if (obstacle.type === 'jelly') {
           const pulse = 1 + wave * 0.035;
@@ -6176,6 +6740,9 @@
       const slope = centerX(p.z + 2) - centerX(p.z - 2);
       p.heading = Math.atan2(slope, 4);
       model.root.rotation.y = p.heading;
+      if (game.mode === 'single' && model.visual) {
+        model.visual.visible = game.iframeTimer > 0 ? Math.floor(game.elapsed * 14) % 2 === 0 : true;
+      }
 
       if (p.sheepTime > 0) {
         if (model.visual) model.visual.visible = false;
@@ -6394,6 +6961,8 @@
 
     function fixedUpdate() {
       game.elapsed += game.fixedStep;
+      if (game.iframeTimer > 0) game.iframeTimer = Math.max(0, game.iframeTimer - game.fixedStep);
+      updateEnemies(game.fixedStep);
       updateProjectiles(game.fixedStep);
       updateSkillProjectiles(game.fixedStep);
       players.forEach((p) => {
@@ -6519,6 +7088,12 @@
             mission: run.missionId,
             missionComplete: run.missionComplete,
             rating: run.rating,
+            difficulty: game.difficulty,
+            hearts: player.hearts,
+            deaths: run.deaths,
+            enemies: world.enemies.filter((enemy) => enemy.active).length,
+            bullets: world.enemyBullets.filter((bullet) => bullet.active).length,
+            destroyed: run.destroyed,
             seed: game.seed,
             player: { x: player.x, y: player.y, z: player.z },
             players: players.map((p) => ({
@@ -6565,6 +7140,47 @@
           };
         },
         setMission(id) { return setMission(id, true); },
+        setDifficulty(id) {
+          const def = DIFFICULTY_DEFS.find((item) => item.id === id);
+          if (!def) return false;
+          game.difficulty = def.id;
+          game.difficultyCursor = DIFFICULTY_DEFS.indexOf(def);
+          savedState.settings.difficulty = def.id;
+          saveSettings();
+          if (game.mode === 'single') player.hearts = def.hearts;
+          updateHud();
+          return true;
+        },
+        spawnEnemy(z) {
+          if (game.mode !== 'single') return false;
+          const targetZ = clamp(Number(z) || player.z + 120, 0, LEVEL.endZ);
+          const enemy = spawnEnemyAt(targetZ);
+          return enemy ? clone(api.getState()) : false;
+        },
+        hitPlayer(count = 1) {
+          if (game.mode !== 'single' || game.phase !== 'running' || !run.active) return false;
+          const hits = clamp(Math.floor(Number(count) || 1), 1, 99);
+          const deathsBefore = run.deaths;
+          for (let i = 0; i < hits; i += 1) {
+            if (player.hearts <= 0 || run.deaths > deathsBefore) break;
+            game.iframeTimer = 0;
+            damagePlayer(1);
+          }
+          return clone(api.getState());
+        },
+        setHearts(count) {
+          if (game.mode !== 'single') return false;
+          const def = difficultyDef(game.difficulty);
+          player.hearts = clamp(Math.floor(Number(count) || 0), 0, def.hearts);
+          updateHud();
+          return player.hearts;
+        },
+        clearEnemies() {
+          deactivateAllEnemies();
+          clearEnemyBullets();
+          updateHud();
+          return true;
+        },
         setMode(mode) {
           if (!['single', 'duo'].includes(mode)) return false;
           game.mode = mode;
@@ -6768,6 +7384,13 @@
             ['visual D is screen-right', visualInputAxis({ left: false, right: true }) === -1],
             ['A rating boundary', ratingFor(true, LEVEL.aStarTarget) === 'A'],
             ['B below star boundary', ratingFor(true, LEVEL.aStarTarget - 1) === 'B'],
+            ['death caps rating at B', ratingFor(true, LEVEL.aStarTarget, 1) === 'B'],
+            ['four difficulties', DIFFICULTY_DEFS.length === 4 && DIFFICULTY_DEFS[0].id === 'nap' && DIFFICULTY_DEFS[3].id === 'nightmare'],
+            ['difficulty fallback', difficultyDef('invalid').id === 'dream'],
+            ['settings difficulty fallback', normalizeSettings({ difficulty: 'invalid' }).difficulty === 'dream'],
+            ['single knight swordwave', SKILL_BY_MODE.single.knight === 'swordwave'],
+            ['single mage guard', SKILL_BY_MODE.single.mage === 'guard'],
+            ['duo mage keeps sheep', SKILL_BY_MODE.duo.mage === 'orb'],
             ['checkpoint at 700', nearestCheckpointIndex(700) === 1],
             ['nine zones', LEVEL.zones === 9 && LEVEL.endZ === 6300],
             ['three-times base speed', LEVEL.minSpeed === 24 && LEVEL.maxSpeed === 36],
@@ -6784,7 +7407,9 @@
             ['four traps', Object.keys(TRAP_DEFS).length === 4],
             ['nine talents', TALENT_DEFS.length === 9],
             ['four characters', CHARACTER_DEFS.length === 4],
-            ['four character skills', Object.keys(CHARACTER_SKILLS).length === 4],
+            ['six mode skills', Object.keys(CHARACTER_SKILLS).length === 6],
+            ['enemy pool six', world.enemies.length === 6],
+            ['enemy bullet pool ninety', world.enemyBullets.length === 90],
             ['characters map to skills', CHARACTER_DEFS.every((def) => Boolean(CHARACTER_SKILLS[def.skill]))],
             ['rogue skill is roll', CHARACTER_DEFS.find((def) => def.id === 'rogue').skill === 'roll'],
             ['mage skill turns sheep', CHARACTER_SKILLS.orb.sheepTime > 0],
