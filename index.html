@@ -571,6 +571,57 @@
       font-weight: 750;
     }
 
+    #lanScreen .glass { width: min(680px, calc(100vw - 42px)); }
+
+    .lan-panel {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      align-items: center;
+      margin-top: 14px;
+      flex-wrap: wrap;
+    }
+
+    .lan-input {
+      flex: 1;
+      min-width: 190px;
+      padding: 14px 16px;
+      border: 3px solid var(--ink);
+      border-radius: 16px;
+      background: rgba(255,255,255,.86);
+      color: var(--ink);
+      font-size: 16px;
+      font-weight: 800;
+      outline: none;
+    }
+
+    .lan-input:focus { border-color: var(--pink-deep); }
+
+    .lan-room-info {
+      margin-top: 16px;
+      padding: 14px;
+      border: 2px dashed rgba(53,43,77,.45);
+      border-radius: 18px;
+      background: rgba(255,255,255,.42);
+    }
+
+    .lan-room-info.hidden { display: none; }
+
+    .lan-url {
+      margin-top: 6px;
+      white-space: pre-line;
+      padding: 8px 10px;
+      border-radius: 12px;
+      background: rgba(53,43,77,.08);
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 15px;
+      font-weight: 800;
+      word-break: break-all;
+    }
+
+    #lanStatus.ok { color: #2f6e58; }
+    #lanStatus.warn { color: #b35d75; }
+
     #talentScreen .glass,
     #pauseScreen .glass,
     #contactScreen .glass { width: min(820px, calc(100vw - 42px)); }
@@ -917,6 +968,7 @@
           <button id="duoBtn" class="btn primary" type="button">双人竞速</button>
           <button id="talentBtn" class="btn ghost" type="button">天赋</button>
           <button id="skinMenuBtn" class="btn ghost" type="button">角色</button>
+          <button id="lanBtn" class="btn ghost wide" type="button">局域网联机</button>
           <button id="contactBtn" class="btn ghost wide" type="button">联系作者</button>
         </div>
         <div class="mini-note">P1：A/D + W　·　P2：←/→ 移动，↑ 跳跃，↓ 技能</div>
@@ -979,6 +1031,32 @@
       </div>
     </section>
 
+    <section id="lanScreen" class="screen">
+      <div class="glass">
+        <div class="eyebrow">同一网络 · 两台电脑</div>
+        <h2>局域网联机</h2>
+        <div id="lanStatus" class="mini-note">两台电脑各用 <strong>A / D / W / Q / S</strong> 控制自己的角色。</div>
+        <div class="lan-panel">
+          <button id="lanHostBtn" class="btn primary" type="button">创建房间（我是主机）</button>
+        </div>
+        <div class="lan-panel">
+          <input id="lanRoomInput" class="lan-input" type="text" placeholder="房间码或主机地址，如 A7K2 / 192.168.1.5:8000" autocomplete="off">
+          <button id="lanJoinBtn" class="btn primary" type="button">加入房间</button>
+        </div>
+        <div id="lanRoomInfo" class="lan-room-info hidden">
+          <div>把下面这个地址发给对方，让他用浏览器打开：</div>
+          <div id="lanUrl" class="lan-url">—</div>
+          <div class="lan-panel">
+            <button id="lanCopyBtn" class="btn ghost" type="button">复制地址</button>
+            <button id="lanStartBtn" class="btn primary" type="button">开始选角</button>
+          </div>
+        </div>
+        <div class="button-row">
+          <button id="lanBackBtn" class="btn ghost" type="button">返回主页</button>
+        </div>
+      </div>
+    </section>
+
     <section id="contactScreen" class="screen">
       <div class="glass">
         <div class="eyebrow">课程作品</div>
@@ -1032,6 +1110,17 @@
       single: document.getElementById('singleBtn'),
       duo: document.getElementById('duoBtn'),
       talentButton: document.getElementById('talentBtn'),
+      lanButton: document.getElementById('lanBtn'),
+      lanScreen: document.getElementById('lanScreen'),
+      lanStatus: document.getElementById('lanStatus'),
+      lanHostBtn: document.getElementById('lanHostBtn'),
+      lanJoinBtn: document.getElementById('lanJoinBtn'),
+      lanRoomInput: document.getElementById('lanRoomInput'),
+      lanRoomInfo: document.getElementById('lanRoomInfo'),
+      lanUrl: document.getElementById('lanUrl'),
+      lanCopyBtn: document.getElementById('lanCopyBtn'),
+      lanStartBtn: document.getElementById('lanStartBtn'),
+      lanBackBtn: document.getElementById('lanBackBtn'),
       skinMenuButton: document.getElementById('skinMenuBtn'),
       contactButton: document.getElementById('contactBtn'),
       titleTotalStars: document.getElementById('titleTotalStars'),
@@ -1436,11 +1525,13 @@
       setScreen(dom.countdown, false);
       setScreen(dom.result, false);
       setScreen(dom.talentScreen, false);
+      setScreen(dom.lanScreen, false);
       setScreen(dom.contactScreen, false);
       if (!game.paused) setScreen(dom.pauseScreen, false);
     }
 
     function showToast(title, detail = '', tone = 'gold') {
+      netQueueEvent({ t: 'toast', a: title, b: detail, c: tone });
       const toast = document.createElement('div');
       toast.className = `toast${tone === 'blue' ? ' blue' : tone === 'pink' ? ' pink' : ''}`;
       const strong = document.createElement('strong');
@@ -1567,6 +1658,7 @@
     }
 
     function playSfx(name) {
+      netQueueEvent({ t: 'sfx', n: name });
       if (!audio.context) return;
       if (name === 'jump') {
         playTone({ frequency: 410, slideTo: 690, duration: 0.13, type: 'sine', volume: 0.14 });
@@ -2039,6 +2131,7 @@
         updateAudioButton();
         updateTitleStats();
         setPhase('title');
+        maybeAutoJoinFromUrl();
         dom.loading.classList.add('hidden');
         setupDebugApi();
         animationFrame = window.requestAnimationFrame(animate);
@@ -3400,6 +3493,7 @@
         world.particlePool.setColorAt(index, color);
       }
       if (world.particlePool.instanceColor) world.particlePool.instanceColor.needsUpdate = true;
+      netQueueEvent({ t: 'burst', x: position.x, y: position.y, z: position.z, c: colorHex, n: count, f: force, l: life });
     }
 
     function updateParticles(dt) {
@@ -3467,6 +3561,10 @@
         setScreen(dom.talentScreen, true);
         dom.hud.classList.remove('visible');
         renderTalentPanel();
+      } else if (phase === 'lan') {
+        hideAllMenus();
+        setScreen(dom.lanScreen, true);
+        dom.hud.classList.remove('visible');
       } else if (phase === 'contact') {
         hideAllMenus();
         setScreen(dom.contactScreen, true);
@@ -3537,6 +3635,10 @@
     }
 
     function confirmCharacterSelection() {
+      if (netIsGuest()) {
+        showToast('等待房主开始', '房主确认后自动进入倒计时', 'blue');
+        return;
+      }
       const pick = game.characterPick || { count: 1, menuOnly: false, selected: {} };
       savedState.characters.selectedP1 = pickCharacterId(0);
       savedState.characters.selectedP2 = pickCharacterId(1);
@@ -3573,6 +3675,7 @@
       saveCharacters();
       updateCharacterPreview(true);
       playTone({ frequency: direction > 0 ? 880 : 760, duration: 0.08, type: 'sine', volume: 0.11 });
+      if (netIsGuest() && pid === 1) netSend({ t: 'char', id: next.id });
     }
 
     function updateCharacterPreview(immediate = false) {
@@ -3616,6 +3719,571 @@
         if (players[0].model && players[0].model.label) players[0].model.label.visible = pick.count > 1;
         if (players[1].model && players[1].model.label) players[1].model.label.visible = pick.count > 1;
       }
+    }
+
+    // ===================== 局域网联机 =====================
+    const NET = {
+      role: 'off',            // 'off' | 'host' | 'guest'
+      ws: null,
+      room: '',
+      shareUrl: '',
+      urls: [],
+      connected: false,
+      peer: false,
+      localId: 0,
+      seq: 0,
+      inputTimer: 0,
+      snapshotTimer: 0,
+      keepAliveTimer: 0,
+      local: { left: false, right: false, jumpHeld: false, jump: false, skill: false, item: false },
+      remote: { left: false, right: false, jumpHeld: false, jump: false, skill: false, item: false },
+      pendingChar: null,
+      collectedQueue: [],
+      collectedSet: new Set(),
+      events: [],
+      fullCollected: false,
+      started: false,
+      lastReceive: 0,
+      rxCount: 0,
+      lastType: '',
+      txCount: 0
+    };
+
+    function netActive() { return NET.role !== 'off'; }
+    function netIsHost() { return NET.role === 'host'; }
+    function netIsGuest() { return NET.role === 'guest'; }
+
+    function netSetStatus(text, tone = '') {
+      if (!dom.lanStatus) return;
+      dom.lanStatus.textContent = text;
+      dom.lanStatus.className = `mini-note ${tone}`.trim();
+    }
+
+    function netSend(obj) {
+      if (!NET.ws || NET.ws.readyState !== WebSocket.OPEN) return false;
+      try {
+        NET.ws.send(JSON.stringify(obj));
+        NET.txCount += 1;
+        return true;
+      } catch (error) {
+        return false;
+      }
+    }
+
+    function netWsUrl(role, room, hostOverride) {
+      const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const host = hostOverride || location.host;
+      return `${proto}//${host}/ws?role=${role}&room=${encodeURIComponent(room || '')}`;
+    }
+
+    function netParseTarget(raw) {
+      const text = String(raw || '').trim();
+      const here = location.host;
+      if (!text) return { host: here, room: '' };
+      if (/^[A-Za-z0-9]{4}$/.test(text)) return { host: here, room: text.toUpperCase() };
+      try {
+        const url = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(text) ? text : `http://${text}`);
+        return { host: url.host, room: (url.searchParams.get('room') || '').toUpperCase() };
+      } catch (error) {
+        return { host: here, room: text.toUpperCase() };
+      }
+    }
+
+    function netDisconnect(silent = false) {
+      if (NET.ws) {
+        try {
+          NET.ws.onclose = null;
+          NET.ws.onmessage = null;
+          NET.ws.close();
+        } catch (error) { /* ignore */ }
+      }
+      NET.ws = null;
+      NET.connected = false;
+      NET.peer = false;
+      NET.started = false;
+      if (!silent) NET.role = 'off';
+    }
+
+    function netConnect(role, room, hostOverride) {
+      netDisconnect(true);
+      NET.role = role;
+      NET.localId = role === 'host' ? 0 : 1;
+      NET.room = String(room || '').toUpperCase();
+      if (dom.lanRoomInfo) dom.lanRoomInfo.classList.add('hidden');
+      netSetStatus(role === 'host' ? '正在创建房间…' : '正在连接主机…');
+      let ws;
+      try {
+        ws = new WebSocket(netWsUrl(role, NET.room, hostOverride));
+      } catch (error) {
+        NET.role = 'off';
+        netSetStatus(`无法连接：${error && error.message ? error.message : '地址无效'}`, 'warn');
+        return false;
+      }
+      NET.ws = ws;
+      ws.onopen = () => {
+        NET.connected = true;
+      };
+      ws.onmessage = (event) => netHandleMessage(event.data);
+      ws.onerror = () => {
+        netSetStatus('连接失败：请确认主机已运行 server.py，且地址/端口正确', 'warn');
+      };
+      ws.onclose = () => {
+        const wasGuest = netIsGuest();
+        NET.connected = false;
+        NET.peer = false;
+        if (wasGuest) {
+          netSetStatus('与主机断开连接', 'warn');
+          NET.role = 'off';
+          showToast('已断开联机', '主机连接中断，可重新加入', 'pink');
+          setPhase('lan');
+        } else if (netIsHost()) {
+          netSetStatus('客机已离开，等待重新加入…', 'warn');
+        }
+      };
+      return true;
+    }
+
+    function netHandleMessage(raw) {
+      NET.rxCount += 1;
+      let msg = null;
+      try { msg = JSON.parse(raw); } catch (error) { return; }
+      if (!msg || !msg.t) return;
+      NET.lastType = msg.t;
+      NET.lastReceive = performance.now();
+      if (msg.t === 'welcome') {
+        NET.room = msg.room || NET.room;
+        NET.urls = msg.urls || [];
+        NET.peer = false;
+        if (netIsHost()) {
+          const bases = (NET.urls && NET.urls.length) ? NET.urls : [`${location.origin}/`];
+          NET.shareUrl = `${bases[0]}?room=${NET.room}`;
+          if (dom.lanUrl) {
+            const alt = bases.slice(1).map((url) => `${url}?room=${NET.room}`);
+            dom.lanUrl.textContent = alt.length
+              ? `${NET.shareUrl}\n(如果连不上，也可以试：\n${alt.join('\n')})`
+              : NET.shareUrl;
+          }
+          if (dom.lanRoomInfo) dom.lanRoomInfo.classList.remove('hidden');
+          if (dom.lanStartBtn) dom.lanStartBtn.disabled = true;
+          netSetStatus(`房间 ${NET.room} 已创建，等待对方加入…`, 'ok');
+        } else {
+          netSetStatus(`已加入房间 ${NET.room}，等待主机开始…`, 'ok');
+        }
+        return;
+      }
+      if (msg.t === 'peer-joined') {
+        NET.peer = true;
+        if (netIsHost()) {
+          if (dom.lanStartBtn) dom.lanStartBtn.disabled = false;
+          netSetStatus('对方已加入，点「开始选角」开跑', 'ok');
+        }
+        return;
+      }
+      if (msg.t === 'peer-left') {
+        NET.peer = false;
+        if (netIsHost()) {
+          if (dom.lanStartBtn) dom.lanStartBtn.disabled = true;
+          netSetStatus('客机已离开，等待重新加入…', 'warn');
+        }
+        return;
+      }
+      if (msg.t === 'error') {
+        netSetStatus(msg.message || '连接被拒绝', 'warn');
+        return;
+      }
+      if (netIsHost()) {
+        if (msg.t === 'input') {
+          NET.inputRx = (NET.inputRx || 0) + 1;
+          const r = NET.remote;
+          r.left = Boolean(msg.left);
+          r.right = Boolean(msg.right);
+          r.jumpHeld = Boolean(msg.jumpHeld);
+          if (msg.jump) r.jump = true;
+          if (msg.skill) r.skill = true;
+          if (msg.item) r.item = true;
+        } else if (msg.t === 'char') {
+          NET.pendingChar = msg.id;
+          netHostApplyGuestChar();
+        } else if (msg.t === 'ping') {
+          netSend({ t: 'pong' });
+        }
+        return;
+      }
+      if (msg.t === 'start') netGuestApplyStart(msg);
+      else if (msg.t === 'state') netApplySnapshot(msg);
+    }
+
+    // ---------- 主机侧 ----------
+    function netHostApplyGuestChar() {
+      if (!NET.pendingChar || !game.characterPick) return;
+      const id = NET.pendingChar;
+      NET.pendingChar = null;
+      if (!CHARACTER_DEFS.some((def) => def.id === id)) return;
+      if (!game.characterPick.selected) game.characterPick.selected = {};
+      game.characterPick.selected[1] = id;
+      savedState.characters.selectedP2 = id;
+      saveCharacters();
+      updateCharacterPreview(true);
+    }
+
+    function netHostApplyInputs() {
+      inputs[0].left = NET.local.left;
+      inputs[0].right = NET.local.right;
+      inputs[0].jumpHeld = NET.local.jumpHeld;
+      if (NET.local.jump) { NET.local.jump = false; queueJump(0); }
+      if (NET.local.skill) { NET.local.skill = false; tryUseAbility(0); }
+      if (NET.local.item) { NET.local.item = false; tryQuestion(0); }
+
+      inputs[1].left = NET.remote.left;
+      inputs[1].right = NET.remote.right;
+      inputs[1].jumpHeld = NET.remote.jumpHeld;
+      if (NET.remote.jump) { NET.remote.jump = false; queueJump(1); }
+      if (NET.remote.skill) { NET.remote.skill = false; tryUseAbility(1); }
+      if (NET.remote.item) { NET.remote.item = false; tryQuestion(1); }
+    }
+
+    function netHostSendStart() {
+      NET.fullCollected = true;
+      NET.started = true;
+      netSend({
+        t: 'start',
+        seed: game.seed,
+        mode: game.mode,
+        missionId: run.missionId,
+        chars: { p1: selectedCharacterId(0), p2: selectedCharacterId(1) },
+        pads: world.cloudPads.map((pad) => (pad.active ? 1 : 0)),
+        obstacles: world.obstacles.map((ob) => (ob.runEnabled === false ? 0 : 1))
+      });
+    }
+
+    function netSerializePlayer(p) {
+      const effects = {};
+      Object.entries(p.effects || {}).forEach(([id, effect]) => {
+        effects[id] = {
+          time: Number((effect.time || 0).toFixed(2)),
+          buff: effect.buff !== false,
+          charges: effect.charges || 0
+        };
+      });
+      return {
+        active: p.active,
+        x: Number(p.x.toFixed(2)),
+        y: Number(p.y.toFixed(2)),
+        z: Number(p.z.toFixed(2)),
+        vx: Number(p.vx.toFixed(2)),
+        vy: Number(p.vy.toFixed(2)),
+        grounded: p.grounded,
+        sizeScale: Number(p.sizeScale.toFixed(2)),
+        stamina: Number(p.stamina.toFixed(2)),
+        questionCharges: p.questionCharges,
+        sheepTime: Number(p.sheepTime.toFixed(2)),
+        chargeTime: Number(p.chargeTime.toFixed(2)),
+        chargeKind: p.chargeKind || '',
+        balloonTime: Number(p.balloonTime.toFixed(2)),
+        recoveryTime: Number(p.recoveryTime.toFixed(2)),
+        recoveryTotal: Number(p.recoveryTotal.toFixed(2)),
+        spinRotation: Number((p.spinRotation || 0).toFixed(2)),
+        spinRotationX: Number((p.spinRotationX || 0).toFixed(2)),
+        squash: Number((p.squash || 0).toFixed(2)),
+        forwardBonus: Number((p.forwardBonus || 0).toFixed(2)),
+        inkAmount: Number((p.inkAmount || 0).toFixed(2)),
+        stars: p.stars,
+        coins: p.coins,
+        mushrooms: p.mushrooms,
+        characterId: p.model ? p.model.characterId : null,
+        effects
+      };
+    }
+
+    function netAllCollected() {
+      const list = [];
+      world.collectibles.forEach((item, index) => {
+        if (item.userData.active === false) list.push({ k: 'c', i: index });
+      });
+      world.powerups.forEach((item, index) => {
+        if (item.userData.active === false) list.push({ k: 'p', i: index });
+      });
+      return list;
+    }
+
+    function netQueueCollected(kind, index) {
+      if (!netIsHost()) return;
+      NET.collectedQueue.push({ k: kind, i: index });
+    }
+
+    function netQueueEvent(event) {
+      if (!netIsHost()) return;
+      NET.events.push(event);
+      if (NET.events.length > 120) NET.events.splice(0, NET.events.length - 120);
+    }
+
+    function netBuildSnapshot() {
+      const snap = {
+        t: 'state',
+        seq: ++NET.seq,
+        phase: game.phase,
+        paused: game.paused,
+        elapsed: Number(game.elapsed.toFixed(2)),
+        countdownTime: Number(game.countdownTime.toFixed(2)),
+        mode: game.mode,
+        winner: game.winner,
+        run: {
+          missionId: run.missionId,
+          stars: run.stars,
+          coins: run.coins,
+          mushrooms: run.mushrooms,
+          missionComplete: run.missionComplete,
+          rating: run.rating
+        },
+        players: players.map(netSerializePlayer),
+        events: NET.events.splice(0, NET.events.length)
+      };
+      if (NET.fullCollected) {
+        NET.fullCollected = false;
+        snap.collected = netAllCollected();
+      } else {
+        snap.collected = NET.collectedQueue.splice(0, NET.collectedQueue.length);
+      }
+      return snap;
+    }
+
+    // ---------- 客机侧 ----------
+    function netGuestApplyStart(msg) {
+      game.mode = 'duo';
+      game.activePlayers = 2;
+      NET.started = true;
+      NET.collectedSet.clear();
+      NET.local.jump = false;
+      NET.local.skill = false;
+      NET.local.item = false;
+      if (msg.chars) {
+        if (msg.chars.p1) savedState.characters.selectedP1 = msg.chars.p1;
+        if (msg.chars.p2) savedState.characters.selectedP2 = msg.chars.p2;
+      }
+      resetRun(false, msg.seed);
+      if (msg.missionId) run.missionId = msg.missionId;
+      (msg.pads || []).forEach((value, index) => {
+        const pad = world.cloudPads[index];
+        if (!pad) return;
+        pad.active = Boolean(value);
+        if (pad.group) pad.group.visible = pad.active;
+      });
+      (msg.obstacles || []).forEach((value, index) => {
+        const obstacle = world.obstacles[index];
+        if (obstacle) obstacle.runEnabled = Boolean(value);
+      });
+      players.forEach((p) => { p.netReady = false; });
+      refreshPlayerCharacters();
+      updateHud();
+    }
+
+    function netMarkCollected(entry) {
+      const key = `${entry.k}${entry.i}`;
+      if (NET.collectedSet.has(key)) return;
+      NET.collectedSet.add(key);
+      const item = entry.k === 'c' ? world.collectibles[entry.i] : world.powerups[entry.i];
+      if (!item) return;
+      item.userData.active = false;
+      item.visible = false;
+    }
+
+    function netApplyPlayerState(p, ps) {
+      if (!ps) return;
+      p.active = Boolean(ps.active);
+      p.netX = ps.x;
+      p.netY = ps.y;
+      p.netZ = ps.z;
+      if (!p.netReady) {
+        p.x = ps.x; p.y = ps.y; p.z = ps.z;
+        p.netReady = true;
+      }
+      p.vx = ps.vx; p.vy = ps.vy;
+      p.grounded = Boolean(ps.grounded);
+      p.sizeScale = ps.sizeScale;
+      p.stamina = ps.stamina;
+      p.questionCharges = ps.questionCharges;
+      p.sheepTime = ps.sheepTime;
+      p.chargeTime = ps.chargeTime;
+      p.chargeKind = ps.chargeKind || '';
+      p.balloonTime = ps.balloonTime;
+      p.recoveryTime = ps.recoveryTime;
+      p.recoveryTotal = ps.recoveryTotal;
+      p.spinRotation = ps.spinRotation;
+      p.spinRotationX = ps.spinRotationX;
+      p.squash = ps.squash;
+      p.forwardBonus = ps.forwardBonus;
+      p.inkAmount = ps.inkAmount;
+      p.stars = ps.stars;
+      p.coins = ps.coins;
+      p.mushrooms = ps.mushrooms;
+      const effects = {};
+      Object.entries(ps.effects || {}).forEach(([id, effect]) => {
+        effects[id] = {
+          id,
+          buff: effect.buff !== false,
+          time: effect.time,
+          duration: Math.max(0.001, effect.time),
+          charges: effect.charges || 0
+        };
+      });
+      p.effects = effects;
+    }
+
+    function netApplySnapshot(s) {
+      game.elapsed = s.elapsed;
+      game.countdownTime = s.countdownTime;
+      game.mode = s.mode || game.mode;
+      game.winner = s.winner === undefined ? game.winner : s.winner;
+      if (s.run) {
+        run.missionId = s.run.missionId || run.missionId;
+        run.stars = s.run.stars || 0;
+        run.coins = s.run.coins || 0;
+        run.mushrooms = s.run.mushrooms || 0;
+        run.missionComplete = Boolean(s.run.missionComplete);
+        run.rating = s.run.rating || 'B';
+      }
+      (s.collected || []).forEach(netMarkCollected);
+      (s.players || []).forEach((ps, index) => { if (players[index]) netApplyPlayerState(players[index], ps); });
+      (s.events || []).forEach(netReplayEvent);
+      if (typeof s.paused === 'boolean' && s.paused !== game.paused) togglePause(s.paused);
+      if (s.phase && s.phase !== game.phase) netGuestPhase(s.phase);
+      if (s.phase === 'countdown') {
+        const remaining = 3.25 - (s.countdownTime || 0);
+        if (remaining > 2.25) dom.countdownNumber.textContent = '3';
+        else if (remaining > 1.25) dom.countdownNumber.textContent = '2';
+        else if (remaining > 0.25) dom.countdownNumber.textContent = '1';
+        else dom.countdownNumber.textContent = '出发!';
+      }
+    }
+
+    function netReplayEvent(event) {
+      if (!event) return;
+      if (event.t === 'burst') {
+        spawnBurst(new THREE.Vector3(event.x, event.y, event.z), event.c, event.n, event.f, event.l);
+      } else if (event.t === 'sfx') {
+        playSfx(event.n);
+      } else if (event.t === 'toast') {
+        showToast(event.a, event.b, event.c);
+      } else if (event.t === 'proj') {
+        const owner = players[event.o];
+        if (!owner) return;
+        if (event.k === 'question') fireQuestion(owner, true);
+        else if (event.k === 'orb') spawnSkillProjectile(owner, CHARACTER_SKILLS.orb, true);
+      } else if (event.t === 'slash') {
+        const owner = players[event.o];
+        if (owner) spawnSlashEffect(owner, CHARACTER_SKILLS.slash);
+      }
+    }
+
+    function netGuestPhase(phase) {
+      if (phase === 'title') {
+        setPhase('lan');
+        return;
+      }
+      if (phase === 'result') {
+        showResult();
+        return;
+      }
+      if (phase === 'skins' && (!game.characterPick || game.characterPick.count < 2)) {
+        game.characterPick = {
+          count: 2,
+          menuOnly: false,
+          selected: { 0: selectedCharacterId(0), 1: selectedCharacterId(1) }
+        };
+      }
+      if (phase === 'countdown') {
+        dom.countdownEyebrow.textContent = '局域网 1v1';
+        dom.countdownTask.textContent = '两台电脑都用 A/D 移动 · W 跳 · Q 技能 · S 问号道具';
+        dom.countdownNumber.textContent = '3';
+      }
+      setPhase(phase);
+    }
+
+    function netSendLocalInput() {
+      if (!NET.connected) return;
+      netSend({
+        t: 'input',
+        seq: ++NET.seq,
+        left: NET.local.left,
+        right: NET.local.right,
+        jump: NET.local.jump,
+        jumpHeld: NET.local.jumpHeld,
+        skill: NET.local.skill,
+        item: NET.local.item
+      });
+      NET.local.jump = false;
+      NET.local.skill = false;
+      NET.local.item = false;
+    }
+
+    function netGuestFrame(dt) {
+      const k = 1 - Math.exp(-dt * 18);
+      players.forEach((p) => {
+        if (p.netX === undefined) return;
+        p.x += (p.netX - p.x) * k;
+        p.y += (p.netY - p.y) * k;
+        p.z += (p.netZ - p.z) * k;
+      });
+      updateProjectiles(dt);
+      updateSkillProjectiles(dt);
+      NET.inputTimer += dt;
+      if (NET.inputTimer >= 0.033) {
+        NET.inputTimer = 0;
+        netSendLocalInput();
+      }
+      NET.keepAliveTimer += dt;
+      if (NET.keepAliveTimer >= 5) {
+        NET.keepAliveTimer = 0;
+        netSend({ t: 'ping' });
+      }
+    }
+
+    function netSetLocal(key, value) {
+      NET.local[key] = value;
+      if (netIsGuest()) netSendLocalInput();
+    }
+
+    function startLanHost() {
+      if (/github\.io$/i.test(location.hostname)) {
+        netSetStatus('联机需要在本机运行 server.py，然后打开它给出的局域网地址', 'warn');
+        setPhase('lan');
+        return;
+      }
+      netConnect('host', '');
+      setPhase('lan');
+    }
+
+    function startLanGuest(raw) {
+      const target = netParseTarget(raw);
+      if (!target.room) {
+        netSetStatus('请输入 4 位房间码，或房主页面上显示的完整地址', 'warn');
+        return;
+      }
+      const onPages = /github\.io$/i.test(location.hostname);
+      if (onPages && target.host === location.host) {
+        netSetStatus('请先打开房主给你的局域网地址（形如 http://192.168.x.x:8000/?room=XXXX）', 'warn');
+        return;
+      }
+      netConnect('guest', target.room, target.host);
+      setPhase('lan');
+    }
+
+    function startLanMatch() {
+      if (!netIsHost()) return;
+      if (!NET.peer) {
+        showToast('还没有客机加入', '把房间地址发给对方后再开始', 'pink');
+        return;
+      }
+      game.mode = 'duo';
+      game.activePlayers = 2;
+      beginCharacterSelection(2, true);
+    }
+
+    function netTeardownToTitle() {
+      netDisconnect();
+      netSetStatus('两台电脑各用 A / D / W / Q / S 控制自己的角色。');
+      if (dom.lanRoomInfo) dom.lanRoomInfo.classList.add('hidden');
+      if (dom.lanStartBtn) dom.lanStartBtn.disabled = true;
     }
 
     function seedFromTime() {
@@ -3748,7 +4416,7 @@
       }
     }
 
-    function resetRun(selectMission = true) {
+    function resetRun(selectMission = true, seedOverride = null) {
       if (selectMission) run.missionId = chooseMission();
       run.stars = 0;
       run.coins = 0;
@@ -3774,7 +4442,7 @@
       clearProjectiles();
       clearPowerProjectiles();
       clearSlashEffects();
-      game.seed = seedFromTime();
+      game.seed = seedOverride === null || seedOverride === undefined ? seedFromTime() : (Number(seedOverride) >>> 0 || 1);
       game.rng = makeSeededRandom(game.seed);
       world.cloudPads.forEach((pad) => {
         pad.active = game.rng() < 0.6;
@@ -3813,6 +4481,7 @@
 
     function startCountdown() {
       resetRun(game.mode === 'single');
+      if (netIsHost()) netHostSendStart();
       setPhase('countdown');
       if (game.mode === 'duo') {
         dom.countdownEyebrow.textContent = '双人竞速';
@@ -3871,10 +4540,40 @@
       ];
       if (movementCodes.includes(code)) event.preventDefault();
       if (code === 'Escape') {
+        if (netIsGuest()) return;
         if (game.phase === 'running') togglePause();
         else if (game.paused) togglePause(false);
         return;
       }
+
+      if (netActive()) {
+        // 局域网联机：两台电脑都用 WASD 控制「自己这台机器上」的角色
+        if (game.phase === 'skins') {
+          const localPick = netIsHost() ? 0 : 1;
+          if (code === 'KeyA') selectCharacter(localPick, -1);
+          else if (code === 'KeyD') selectCharacter(localPick, 1);
+          else if (code === 'Space' || code === 'Enter' || code === 'NumpadEnter') {
+            if (netIsHost()) confirmCharacterSelection();
+            else showToast('等待房主开始', '房主确认角色后自动进入倒计时', 'blue');
+          }
+          return;
+        }
+        if (game.phase === 'result') {
+          if ((code === 'Space' || code === 'Enter') && netIsHost()) startCountdown();
+          return;
+        }
+        if (game.phase !== 'running' || game.paused) return;
+        if (code === 'KeyA') netSetLocal('left', true);
+        if (code === 'KeyD') netSetLocal('right', true);
+        if (code === 'KeyW' || code === 'Space') {
+          netSetLocal('jumpHeld', true);
+          if (!event.repeat) netSetLocal('jump', true);
+        }
+        if (code === 'KeyQ' && !event.repeat) netSetLocal('skill', true);
+        if (code === 'KeyS' && !event.repeat) netSetLocal('item', true);
+        return;
+      }
+
       if (game.phase === 'skins') {
         const duoPick = Boolean(game.characterPick && game.characterPick.count > 1);
         if (code === 'KeyA') selectCharacter(0, -1);
@@ -3916,6 +4615,12 @@
 
     function handleKeyUp(event) {
       const code = event.code;
+      if (netActive()) {
+        if (code === 'KeyA') netSetLocal('left', false);
+        if (code === 'KeyD') netSetLocal('right', false);
+        if (code === 'KeyW' || code === 'Space') netSetLocal('jumpHeld', false);
+        return;
+      }
       if (code === 'KeyA') inputs[0].left = false;
       if (code === 'KeyD') inputs[0].right = false;
       if (code === 'KeyW' || code === 'Space') inputs[0].jumpHeld = false;
@@ -3947,23 +4652,54 @@
         beginCharacterSelection(1, false);
       });
       dom.contactButton.addEventListener('click', () => { ensureAudio(); setPhase('contact'); });
+      dom.lanButton.addEventListener('click', () => {
+        ensureAudio();
+        netSetStatus('两台电脑各用 A / D / W / Q / S 控制自己的角色。');
+        setPhase('lan');
+      });
+      if (dom.lanHostBtn) dom.lanHostBtn.addEventListener('click', () => { ensureAudio(); startLanHost(); });
+      if (dom.lanJoinBtn) dom.lanJoinBtn.addEventListener('click', () => { ensureAudio(); startLanGuest(dom.lanRoomInput ? dom.lanRoomInput.value : ''); });
+      if (dom.lanRoomInput) dom.lanRoomInput.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') { ensureAudio(); startLanGuest(dom.lanRoomInput.value); }
+      });
+      if (dom.lanCopyBtn) dom.lanCopyBtn.addEventListener('click', async () => {
+        const text = NET.shareUrl || (dom.lanUrl ? dom.lanUrl.textContent : '');
+        if (!text) return;
+        try { await navigator.clipboard.writeText(text); } catch (error) {
+          const area = document.createElement('textarea');
+          area.value = text;
+          document.body.appendChild(area);
+          area.select();
+          document.execCommand('copy');
+          area.remove();
+        }
+        showToast('地址已复制', text, 'blue');
+      });
+      if (dom.lanStartBtn) dom.lanStartBtn.addEventListener('click', () => { ensureAudio(); startLanMatch(); });
+      if (dom.lanBackBtn) dom.lanBackBtn.addEventListener('click', () => { netDisconnect(); netTeardownToTitle(); returnToTitle(); });
       dom.skinConfirm.addEventListener('click', () => { ensureAudio(); confirmCharacterSelection(); });
       dom.skinBack.addEventListener('click', () => returnToTitle());
       dom.talentBack.addEventListener('click', () => returnToTitle());
       dom.contactBack.addEventListener('click', () => returnToTitle());
-      dom.resume.addEventListener('click', () => togglePause(false));
+      dom.resume.addEventListener('click', () => {
+        if (netIsGuest()) { showToast('联机中由房主控制', '等待房主继续游戏', 'pink'); return; }
+        togglePause(false);
+      });
       dom.pauseRestart.addEventListener('click', () => {
+        if (netIsGuest()) { showToast('联机中由房主控制', '房主可以重新开始本局', 'pink'); return; }
         game.paused = false;
         startCountdown();
       });
       dom.pauseSkin.addEventListener('click', () => {
+        if (netIsGuest()) { showToast('联机中由房主控制', '选角由房主发起', 'pink'); return; }
         game.pendingCharacterReturn = true;
         game.paused = false;
         beginCharacterSelection(game.mode === 'duo' ? 2 : 1, true);
       });
       dom.pauseHome.addEventListener('click', () => {
-        if (window.confirm('返回主页会结束当前比赛，确定吗？')) {
+        if (window.confirm(netIsGuest() ? '返回主页会退出联机，确定吗？' : '返回主页会结束当前比赛，确定吗？')) {
           game.paused = false;
+          netTeardownToTitle();
           returnToTitle();
         }
       });
@@ -3979,6 +4715,16 @@
       window.addEventListener('keyup', handleKeyUp, { passive: false });
       window.addEventListener('pointerdown', ensureAudio, { passive: true });
       window.addEventListener('blur', () => inputs.forEach((item) => { item.left = false; item.right = false; item.jumpHeld = false; }));
+    }
+
+    function maybeAutoJoinFromUrl() {
+      const room = params.get('room');
+      if (!room) return false;
+      const code = String(room).toUpperCase();
+      if (dom.lanRoomInput) dom.lanRoomInput.value = code;
+      setPhase('lan');
+      startLanGuest(code);
+      return true;
     }
 
 
@@ -4136,7 +4882,7 @@
       spawnBurst(new THREE.Vector3(p.x, p.y + 1.2, p.z), 0xd7b3ff, 14, 5.0, 0.7);
     }
 
-    function spawnSkillProjectile(p, skill) {
+    function spawnSkillProjectile(p, skill, visualOnly = false) {
       const group = new THREE.Group();
       const material = new THREE.MeshStandardMaterial({
         color: skill.color,
@@ -4168,10 +4914,12 @@
         color: skill.color,
         dirX: clampedX / aimLen,
         dirZ: aimZ / aimLen,
-        traveled: 0
+        traveled: 0,
+        visualOnly
       };
       scene.add(group);
       world.powerProjectiles.push(group);
+      if (!visualOnly) netQueueEvent({ t: 'proj', k: 'orb', o: p.id });
       return group;
     }
 
@@ -4272,11 +5020,14 @@
       return sprite;
     }
 
-    function fireQuestion(p) {
-      if (game.mode !== 'duo' || !p.active || p.questionCharges <= 0) return;
+    function fireQuestion(p, visualOnly = false) {
+      if (game.mode !== 'duo' || !p.active || !players[p.id === 0 ? 1 : 0]) return;
       const target = players[p.id === 0 ? 1 : 0];
-      if (!target || !target.active || game.raceSettled) return;
-      p.questionCharges -= 1;
+      if (!visualOnly) {
+        if (p.questionCharges <= 0 || !target.active || game.raceSettled) return;
+        p.questionCharges -= 1;
+        netQueueEvent({ t: 'proj', k: 'question', o: p.id });
+      }
       const group = new THREE.Group();
       const material = new THREE.MeshStandardMaterial({
         color: 0xff8fc7,
@@ -4292,12 +5043,15 @@
         ownerId: p.id,
         targetId: target.id,
         speed: 34,
-        radius: 1.6
+        radius: 1.6,
+        visualOnly
       };
       scene.add(group);
       world.projectiles.push(group);
-      playTone({ frequency: 420, slideTo: 920, duration: 0.2, type: 'triangle', volume: 0.11 });
-      updateHud();
+      if (!visualOnly) {
+        playTone({ frequency: 420, slideTo: 920, duration: 0.2, type: 'triangle', volume: 0.11 });
+        updateHud();
+      }
     }
 
     function removeProjectile(projectile) {
@@ -4371,6 +5125,7 @@
       group.userData = { life: 0.34, maxLife: 0.34, arcMat, glowMat };
       scene.add(group);
       world.slashEffects.push(group);
+      netQueueEvent({ t: 'slash', o: p.id });
       return group;
     }
 
@@ -4411,6 +5166,26 @@
         const owner = players[data.ownerId];
         if (!target || !target.active || !owner) {
           removePowerProjectile(projectile);
+          continue;
+        }
+        if (data.visualOnly) {
+          const dir = new THREE.Vector3(target.x - projectile.position.x, target.y + 1.6 - projectile.position.y, target.z - projectile.position.z);
+          const dist = dir.length();
+          if (dist > 0.001) {
+            dir.normalize();
+            projectile.position.addScaledVector(dir, data.speed * dt);
+          }
+          data.traveled = (data.traveled || 0) + data.speed * dt;
+          if (data.traveled > 90) removeProjectile(projectile);
+          continue;
+        }
+        if (data.visualOnly) {
+          projectile.position.x += data.dirX * data.speed * dt;
+          projectile.position.z += data.dirZ * data.speed * dt;
+          projectile.rotation.y += dt * 8;
+          projectile.rotation.x += dt * 5;
+          data.traveled += data.speed * dt;
+          if (data.traveled > data.range) removePowerProjectile(projectile);
           continue;
         }
         const hitDx = projectile.position.x - target.x;
@@ -4509,6 +5284,7 @@
       item.userData.owner = p.id;
       item.userData.collectedAt = game.elapsed;
       item.visible = false;
+      netQueueCollected('c', item.userData.index);
       p.pickupLog.push({ time: game.elapsed, kind: 'collectible', index: item.userData.index, type: item.userData.type });
       const position = item.position.clone();
       if (item.userData.type === 'star') {
@@ -4556,6 +5332,7 @@
       item.userData.owner = p.id;
       item.userData.collectedAt = game.elapsed;
       item.visible = false;
+      netQueueCollected('p', item.userData.index);
       p.pickupLog.push({ time: game.elapsed, kind: 'power', index: item.userData.index, type: item.userData.powerType });
       const type = item.userData.powerType;
       if (type === 'random') {
@@ -5562,14 +6339,23 @@
       const rawDelta = game.lastTime ? (time - game.lastTime) / 1000 : 1 / 60;
       game.lastTime = time;
       const dt = clamp(rawDelta, 0.001, 0.05);
-      if (!game.paused && game.phase !== 'running') game.elapsed += dt;
+      if (!game.paused && game.phase !== 'running' && !netIsGuest()) game.elapsed += dt;
 
-      if (!game.paused && game.phase === 'countdown') {
+      if (netIsHost()) {
+        NET.hostFrames = (NET.hostFrames || 0) + 1;
+        netHostApplyInputs();
+      }
+
+      if (netIsGuest()) {
+        game.accumulator = 0;
+        netGuestFrame(dt);
+      } else if (!game.paused && game.phase === 'countdown') {
         updateCountdown(dt);
       } else if (!game.paused && game.phase === 'running') {
         game.accumulator += dt;
         let steps = 0;
         while (game.accumulator >= game.fixedStep && steps < 5) {
+          NET.hostSteps = (NET.hostSteps || 0) + 1;
           fixedUpdate();
           game.accumulator -= game.fixedStep;
           steps += 1;
@@ -5590,6 +6376,14 @@
         sunLight.position.set(player.x - 24, player.y + 42, focus - 18);
         world.directionalTarget.position.set(player.x * 0.35, player.y, focus + 18);
       }
+      if (netIsHost() && NET.connected && NET.peer) {
+        NET.snapshotTimer += dt;
+        if (NET.snapshotTimer >= 0.05) {
+          NET.snapshotTimer = 0;
+          netSend(netBuildSnapshot());
+        }
+      }
+
       updateWorldVisuals(game.paused ? 0 : dt);
       updateSplitScreenState();
       game.hudTimer = (game.hudTimer || 0) + dt;
@@ -5678,6 +6472,7 @@
             },
             modelsLoaded: game.modelsLoaded,
             splitScreen: game.splitScreen,
+            net: { role: NET.role, room: NET.room, connected: NET.connected, peer: NET.peer, started: NET.started },
             questionProjectiles: world.projectiles.length,
             skillProjectiles: world.powerProjectiles.length,
             slashEffects: world.slashEffects.length,
@@ -5808,6 +6603,10 @@
           setSplitScreen(Boolean(value));
           return game.splitScreen;
         },
+        lanHost() { startLanHost(); return true; },
+        lanJoin(room, host) { startLanGuest(host ? `${host}?room=${room}` : room); return true; },
+        lanStart() { startLanMatch(); return true; },
+        lanState() { return { role: NET.role, room: NET.room, connected: NET.connected, peer: NET.peer, started: NET.started, shareUrl: NET.shareUrl, rx: NET.rxCount, tx: NET.txCount, lastType: NET.lastType, inputRx: NET.inputRx || 0, remote: { ...NET.remote }, local: { ...NET.local }, hostFrames: NET.hostFrames || 0, hostSteps: NET.hostSteps || 0 }; },
         getPreviewState() {
           if (!camera) return [];
           return players.map((p) => {
@@ -5923,6 +6722,10 @@
             ['storage normalization', normalizeStats({ totalStars: -2 }).totalStars === 0],
             ['talent normalization', normalizeTalents({ points: -2, unlocked: ['a1'] }).points === 0],
             ['character normalization', normalizeCharacters({ selectedP1: 'unknown', selectedP2: 'mage' }).selectedP1 === 'knight'],
+            ['lan off by default', NET.role === 'off'],
+            ['lan parses room code', netParseTarget('A7K2').room === 'A7K2'],
+            ['lan parses url', netParseTarget('http://192.168.1.5:8000/?room=ab12').host === '192.168.1.5:8000'],
+            ['lan parses url room', netParseTarget('http://192.168.1.5:8000/?room=ab12').room === 'AB12'],
             ['skin normalization', normalizeSkins({ unlocked: ['unknown'], selected: 'unknown' }).selected === 'cloud']
           ];
           const passed = checks.every((check) => check[1]);
