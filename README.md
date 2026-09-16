@@ -1,8 +1,8 @@
-# 梦幻跑跑
+# DreamDash · 梦幻跑跑
 
 浏览器 3D 跑酷小游戏，单文件 `index.html` + 本地素材，无 npm、无构建。
 
-- 在线游玩：https://daiyuqi-arch.github.io/dreamrun/
+- 在线游玩：https://daiyuqi-arch.github.io/DreamDash/
 - 单人模式：收集星星 / 金币 / 发光蘑菇，冲过终点结算
 - 双人竞速：先到终点者获胜，两人距离拉开时自动左右分屏
 
