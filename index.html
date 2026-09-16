@@ -189,6 +189,35 @@
     #skinScreen { align-items: end; padding-bottom: 42px; }
     #skinScreen .glass { width: min(660px, calc(100vw - 42px)); padding-top: 22px; padding-bottom: 24px; }
 
+    #upgradeScreen .glass { width: min(780px, calc(100vw - 42px)); }
+
+    .upgrade-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin: 18px 0 14px;
+    }
+
+    .upgrade-card {
+      padding: 12px 10px;
+      border: 3px solid rgba(53,43,77,.48);
+      border-radius: 17px;
+      background: rgba(255,255,255,.68);
+      color: var(--ink);
+      cursor: pointer;
+      font-weight: 900;
+    }
+
+    .upgrade-card small { display: block; margin-top: 4px; color: var(--ink-soft); font-size: 11px; }
+    .upgrade-card.active { background: linear-gradient(180deg, #fffdf2, #ffe2a9); transform: translateY(-2px); }
+    .upgrade-detail { padding: 14px; border-radius: 18px; background: rgba(53,43,77,.07); text-align: left; }
+    .upgrade-node { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; padding: 9px 0; border-bottom: 1px solid rgba(53,43,77,.12); }
+    .upgrade-node:last-child { border-bottom: 0; }
+    .upgrade-node strong { font-size: 14px; }
+    .upgrade-node small { color: var(--ink-soft); font-weight: 750; line-height: 1.35; }
+    .upgrade-node .cost { color: #8b5c19; font-weight: 1000; white-space: nowrap; }
+    .upgrade-node.unlocked { color: #28704f; }
+
     .skin-name {
       margin: 4px 0 6px;
       font-size: clamp(28px, 5vw, 44px);
@@ -244,6 +273,13 @@
       font-size: 82px;
       font-weight: 1000;
       text-shadow: 2px 3px 0 rgba(255,255,255,.65);
+    }
+
+    .countdown-number.ready {
+      padding: 0;
+      font-size: clamp(32px, 9vw, 40px);
+      letter-spacing: 0;
+      white-space: nowrap;
     }
 
     .task-card {
@@ -632,6 +668,7 @@
 
     @media (max-width: 760px) {
       .difficulty-grid { grid-template-columns: 1fr; }
+      .upgrade-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
 
     .lan-panel {
@@ -1023,6 +1060,7 @@
         <p class="subtitle">速度提升到三倍，空中云路、九种增益和四种捣蛋道具已经加入。单人轻松跑，或和朋友抢同一批道具冲过终点。</p>
         <div class="stats-line">
           <span class="stat-pill">累计星星 <strong id="titleTotalStars">0</strong></span>
+          <span class="stat-pill">角色星币 <strong id="titleStarCoins">0</strong></span>
           <span class="stat-pill">完成 <strong id="titleTotalRuns">0</strong> 局</span>
           <span class="stat-pill">最佳单局 <strong id="titleBestStars">0</strong> 星</span>
         </div>
@@ -1060,9 +1098,26 @@
         <div id="skinCondition" class="skin-condition"></div>
         <div class="control-hint">P1：A / D　·　P2：← / →　·　空格确认</div>
         <div class="button-row">
+          <button id="skinUpgradeBtn" class="btn primary" type="button">角色强化</button>
           <button id="skinConfirmBtn" class="btn primary" type="button">选好出发</button>
           <button id="skinBackBtn" class="btn ghost" type="button">返回主页</button>
         </div>
+      </div>
+    </section>
+
+    <section id="upgradeScreen" class="screen">
+      <div class="glass">
+        <div class="talent-head">
+          <div><div class="eyebrow">角色成长</div><h2>角色强化</h2></div>
+          <div id="upgradeStarCoins" class="talent-points">星币：0</div>
+        </div>
+        <div id="upgradeGrid" class="upgrade-grid"></div>
+        <div id="upgradeDetail" class="upgrade-detail"></div>
+        <div class="button-row">
+          <button id="upgradeBuyBtn" class="btn primary" type="button">强化下一级</button>
+          <button id="upgradeBackBtn" class="btn ghost" type="button">返回角色页</button>
+        </div>
+        <div class="control-hint">A / D 或 ← / → 选择　·　空格购买　·　ESC 返回</div>
       </div>
     </section>
 
@@ -1200,6 +1255,7 @@
       skinMenuButton: document.getElementById('skinMenuBtn'),
       contactButton: document.getElementById('contactBtn'),
       titleTotalStars: document.getElementById('titleTotalStars'),
+      titleStarCoins: document.getElementById('titleStarCoins'),
       titleTotalRuns: document.getElementById('titleTotalRuns'),
       titleBestStars: document.getElementById('titleBestStars'),
       difficultyScreen: document.getElementById('difficultyScreen'),
@@ -1212,8 +1268,15 @@
       skinName: document.getElementById('skinName'),
       skinCondition: document.getElementById('skinCondition'),
       skinUnlockedCount: document.getElementById('skinUnlockedCount'),
+      skinUpgrade: document.getElementById('skinUpgradeBtn'),
       skinConfirm: document.getElementById('skinConfirmBtn'),
       skinBack: document.getElementById('skinBackBtn'),
+      upgradeScreen: document.getElementById('upgradeScreen'),
+      upgradeStarCoins: document.getElementById('upgradeStarCoins'),
+      upgradeGrid: document.getElementById('upgradeGrid'),
+      upgradeDetail: document.getElementById('upgradeDetail'),
+      upgradeBuy: document.getElementById('upgradeBuyBtn'),
+      upgradeBack: document.getElementById('upgradeBackBtn'),
       countdown: document.getElementById('countdownScreen'),
       countdownNumber: document.getElementById('countdownNumber'),
       countdownEyebrow: document.getElementById('countdownEyebrow'),
@@ -1278,7 +1341,8 @@
       skins: 'dreamrun_skins',
       characters: 'dreamrun_characters',
       settings: 'dreamrun_settings',
-      talents: 'dreamrun_talents'
+      talents: 'dreamrun_talents',
+      upgrades: 'dreamrun_upgrades'
     };
 
     const LEVEL = {
@@ -1300,23 +1364,23 @@
     const DIFFICULTY_DEFS = [
       {
         id: 'nap', name: '小憩', color: '#9de0c1',
-        desc: '速度 ×0.85 · 障碍 45% · 1 只小怪 · 单发弹幕 · 5 心 · 无敌帧 2.0s',
-        speed: 0.85, obstacleRate: 0.45, enemyMax: 1, bullets: 1, hearts: 5, iframe: 2.0, fireInterval: 2.2
+        desc: '速度 ×1.7 · 障碍 45%（双倍数量） · 2 只小怪 · 2 发弹幕 · 5 心 · 无敌帧 2.0s',
+        speed: 1.7, obstacleRate: 0.45, enemyMax: 2, bullets: 2, hearts: 5, iframe: 2.0, fireInterval: 2.2
       },
       {
         id: 'dream', name: '沉梦', color: '#a8d8ff',
-        desc: '速度 ×1.0 · 障碍 85% · 2 只小怪 · 三发弹幕 · 3 心 · 无敌帧 1.2s',
-        speed: 1.0, obstacleRate: 0.85, enemyMax: 2, bullets: 3, hearts: 3, iframe: 1.2, fireInterval: 1.9
+        desc: '速度 ×2.0 · 障碍 85%（双倍数量） · 4 只小怪 · 6 发弹幕 · 3 心 · 无敌帧 1.2s',
+        speed: 2.0, obstacleRate: 0.85, enemyMax: 4, bullets: 6, hearts: 3, iframe: 1.2, fireInterval: 1.9
       },
       {
         id: 'illusion', name: '幻梦', color: '#ffd166',
-        desc: '速度 ×1.2 · 障碍全开 · 4 只小怪 · 六发弹幕 · 3 心 · 无敌帧 0.9s',
-        speed: 1.2, obstacleRate: 1.0, enemyMax: 4, bullets: 6, hearts: 3, iframe: 0.9, fireInterval: 1.6
+        desc: '速度 ×2.4 · 障碍全开（双倍数量） · 8 只小怪 · 12 发弹幕 · 3 心 · 无敌帧 0.9s',
+        speed: 2.4, obstacleRate: 1.0, enemyMax: 8, bullets: 12, hearts: 3, iframe: 0.9, fireInterval: 1.6
       },
       {
         id: 'nightmare', name: '噩梦', color: '#ff9f68',
-        desc: '速度 ×1.35 · 障碍全开 · 6 只小怪 · 九发弹幕 · 3 心 · 无敌帧 0.7s',
-        speed: 1.35, obstacleRate: 1.0, enemyMax: 6, bullets: 9, hearts: 3, iframe: 0.7, fireInterval: 1.3
+        desc: '速度 ×2.7 · 障碍全开（双倍数量） · 12 只小怪 · 18 发弹幕 · 3 心 · 无敌帧 0.7s',
+        speed: 2.7, obstacleRate: 1.0, enemyMax: 12, bullets: 18, hearts: 3, iframe: 0.7, fireInterval: 1.3
       }
     ];
 
@@ -1355,27 +1419,34 @@
 
     const CHARACTER_SKILLS = {
       slash: {
-        name: '骑士挥砍', short: '挥砍', color: 0x9fc7ff, stamina: 1, cooldown: 0.7,
-        range: 6.4, push: 26, backward: 4.5
+        id: 'slash', name: '骑士挥砍', short: '挥砍', color: 0x9fc7ff, stamina: 1, cooldown: 0.7,
+        range: 6.4, push: 26, backward: 4.5,
+        description: '向正前方挥砍，命中对手后造成大量击退。'
       },
       grow: {
-        name: '蛮人变大', short: '变大', color: 0xffc08a, stamina: 1, cooldown: 9,
-        duration: 6
+        id: 'grow', name: '蛮人变大', short: '变大', color: 0xffc08a, stamina: 1, cooldown: 9,
+        duration: 6,
+        description: '变大 500%，推挤更有分量。',
+        singleDescription: '变大至 500% 且期间无敌，接触即可碾压障碍与小怪；碾过 3 只小怪恢复 1 颗心。'
       },
       roll: {
-        name: '游侠翻滚', short: '翻滚', color: 0xb9e6a8, stamina: 1, cooldown: 0.85,
-        duration: 0.6, speed: 1.75
+        id: 'roll', name: '游侠翻滚', short: '翻滚', color: 0xb9e6a8, stamina: 1, cooldown: 0.85,
+        duration: 0.6, speed: 1.75,
+        description: '向当前方向翻滚突进，可用左右键调整路线。'
       },
       orb: {
-        name: '法师变羊', short: '变羊', color: 0xd7b3ff, stamina: 1, cooldown: 1.25,
-        speed: 28, range: 110, radius: 3.4, sheepTime: 2.4
+        id: 'orb', name: '法师变羊', short: '变羊', color: 0xd7b3ff, stamina: 1, cooldown: 1.25,
+        speed: 28, range: 110, radius: 3.4, sheepTime: 2.4,
+        description: '向对手发射法球，命中后将其变成小羊并定在原地。'
       },
       swordwave: {
-        name: '骑士剑气', short: '剑气', color: 0xbfe0ff, stamina: 1, cooldown: 3,
-        speed: 42, range: 40, radius: 3.2
+        id: 'swordwave', name: '骑士剑气', short: '剑气', color: 0xbfe0ff, stamina: 1, cooldown: 3,
+        speed: 42, range: 40, radius: 3.2,
+        description: '释放可穿透的剑气，连续摧毁前方障碍与小怪；每摧毁 3 个目标转化为金币。'
       },
       guard: {
-        name: '法师无敌', short: '无敌', color: 0xd7b3ff, stamina: 1, cooldown: 10, duration: 6
+        id: 'guard', name: '法师无敌', short: '无敌', color: 0xd7b3ff, stamina: 1, cooldown: 10, duration: 6,
+        description: '获得 6 秒无敌，免疫弹幕并穿过所有障碍效果。'
       }
     };
 
@@ -1383,6 +1454,31 @@
     const SKILL_BY_MODE = {
       single: { knight: 'swordwave', mage: 'guard', barbarian: 'grow', rogue: 'roll' },
       duo: { knight: 'slash', mage: 'orb', barbarian: 'grow', rogue: 'roll' }
+    };
+
+    const UPGRADE_COSTS = [30, 70, 150];
+    const UPGRADE_COOLDOWN_MULTIPLIERS = [2, 1.8, 1.6, 1.4];
+    const CHARACTER_UPGRADE_DEFS = {
+      knight: [
+        { name: '锐芒', desc: '剑气射程 +30%，挥砍范围 +25%。' },
+        { name: '劲风', desc: '剑气速度 +20%，挥砍击退 +30%。' },
+        { name: '破阵', desc: '剑气末端产生半径 5 的破坏冲击波；挥砍击退再 +25%。' }
+      ],
+      mage: [
+        { name: '绵长', desc: '无敌或变羊持续时间 +25%。' },
+        { name: '灵光', desc: '法球半径 +25%；无敌期间移动速度 +10%。' },
+        { name: '星盾', desc: '施放技能时获得可抵挡 2 次负面效果的护盾。' }
+      ],
+      barbarian: [
+        { name: '壮硕', desc: '变大持续时间 +25%。' },
+        { name: '撼地', desc: '碾压与推挤范围 +25%。' },
+        { name: '不屈', desc: '单人碾过 1 只小怪即可回血，变身时额外补 1 心；双人持续时间 +2 秒、推力 +25%。' }
+      ],
+      rogue: [
+        { name: '疾风', desc: '翻滚速度 +20%。' },
+        { name: '无影', desc: '翻滚方向调整 +30%，翻滚期间无敌。' },
+        { name: '破云', desc: '单人翻滚可碾碎障碍和小怪；双人翻滚推力 +30%。' }
+      ]
     };
 
     // KayKit 角色自带多件武器挂件，每个角色只保留一件，避免手上武器重叠。
@@ -1442,6 +1538,7 @@
 
     const DEFAULT_STATS = {
       totalStars: 0,
+      starCoins: 0,
       totalRuns: 0,
       totalCoins: 0,
       totalMushrooms: 0,
@@ -1456,6 +1553,7 @@
     const DEFAULT_CHARACTERS = { selectedP1: 'knight', selectedP2: 'mage' };
     const DEFAULT_SETTINGS = { muted: false, difficulty: 'dream' };
     const DEFAULT_TALENTS = { points: 0, unlocked: ['root'] };
+    const DEFAULT_UPGRADES = { knight: 0, barbarian: 0, rogue: 0, mage: 0 };
 
     const params = new URLSearchParams(window.location.search);
     const DEBUG = params.get('debug') === '1';
@@ -1511,8 +1609,11 @@
     }
 
     function normalizeStats(value) {
+      const totalStars = Math.max(0, Math.floor(numberOr(value && value.totalStars, 0)));
+      const hasStarWallet = value && typeof value.starCoins === 'number' && Number.isFinite(value.starCoins);
       return {
-        totalStars: Math.max(0, Math.floor(numberOr(value && value.totalStars, 0))),
+        totalStars,
+        starCoins: hasStarWallet ? Math.max(0, Math.floor(value.starCoins)) : totalStars,
         totalRuns: Math.max(0, Math.floor(numberOr(value && value.totalRuns, 0))),
         totalCoins: Math.max(0, Math.floor(numberOr(value && value.totalCoins, 0))),
         totalMushrooms: Math.max(0, Math.floor(numberOr(value && value.totalMushrooms, 0))),
@@ -1522,6 +1623,15 @@
         bestStars: Math.max(0, Math.floor(numberOr(value && value.bestStars, 0))),
         lastRating: value && (value.lastRating === 'A' || value.lastRating === 'B') ? value.lastRating : 'B'
       };
+    }
+
+    function normalizeUpgrades(value) {
+      const result = {};
+      for (const def of CHARACTER_DEFS) {
+        const raw = value && value[def.id];
+        result[def.id] = clamp(Math.floor(numberOr(raw, 0)), 0, 3);
+      }
+      return result;
     }
 
     function normalizeSkins(value) {
@@ -1568,7 +1678,8 @@
       skins: normalizeSkins(readJSON(STORAGE_KEYS.skins, DEFAULT_SKINS)),
       characters: normalizeCharacters(readJSON(STORAGE_KEYS.characters, DEFAULT_CHARACTERS)),
       settings: normalizeSettings(readJSON(STORAGE_KEYS.settings, DEFAULT_SETTINGS)),
-      talents: normalizeTalents(readJSON(STORAGE_KEYS.talents, DEFAULT_TALENTS))
+      talents: normalizeTalents(readJSON(STORAGE_KEYS.talents, DEFAULT_TALENTS)),
+      upgrades: normalizeUpgrades(readJSON(STORAGE_KEYS.upgrades, DEFAULT_UPGRADES))
     };
 
     function saveStats() {
@@ -1589,6 +1700,10 @@
 
     function saveTalents() {
       writeJSON(STORAGE_KEYS.talents, savedState.talents);
+    }
+
+    function saveUpgrades() {
+      writeJSON(STORAGE_KEYS.upgrades, savedState.upgrades);
     }
 
     function centerX(z) {
@@ -1649,6 +1764,7 @@
       setScreen(dom.title, false);
       setScreen(dom.difficultyScreen, false);
       setScreen(dom.skins, false);
+      setScreen(dom.upgradeScreen, false);
       setScreen(dom.countdown, false);
       setScreen(dom.result, false);
       setScreen(dom.talentScreen, false);
@@ -1675,6 +1791,7 @@
 
     function updateTitleStats() {
       dom.titleTotalStars.textContent = String(savedState.stats.totalStars);
+      if (dom.titleStarCoins) dom.titleStarCoins.textContent = String(savedState.stats.starCoins);
       dom.titleTotalRuns.textContent = String(savedState.stats.totalRuns);
       dom.titleBestStars.textContent = String(savedState.stats.bestStars);
     }
@@ -1857,9 +1974,12 @@
       characterPick: { step: 0, count: 1, menuOnly: false },
       difficulty: savedState.settings.difficulty,
       difficultyCursor: 0,
+      upgradeCursor: 0,
       enemySpawnTimer: 2,
       enemySide: 1,
-      iframeTimer: 0
+      iframeTimer: 0,
+      starRewardSettled: false,
+      competitiveStarReward: 0
     };
 
     const run = {
@@ -1876,6 +1996,7 @@
       checkpointIndex: 0,
       deaths: 0,
       destroyed: 0,
+      giantCrushKills: 0,
       halfShown: false
     };
 
@@ -1932,6 +2053,8 @@
         sheepTotal: 0,
         questionHintAt: 0,
         hearts: 3,
+        upgradeLevel: 0,
+        forwardSpeed: 0,
         pickupLog: []
       };
     }
@@ -2144,6 +2267,18 @@
       return clamp(weight, 0.4, 8);
     }
 
+    function activeSkillPushMultiplier(p) {
+      const level = p && p.upgradeLevel ? p.upgradeLevel : 0;
+      if (!p || level < 3 || game.mode !== 'duo') return 1;
+      if (p.chargeTime > 0 && p.chargeKind === 'roll') return 1.3;
+      if (hasEffect(p, 'giantSkill')) return 1.25;
+      return 1;
+    }
+
+    function activeSkillCollisionRadiusMultiplier(p) {
+      return p && hasEffect(p, 'giantSkill') && (p.upgradeLevel || 0) >= 2 ? 1.25 : 1;
+    }
+
     function enablePlayerLayer(root) {
       if (!root) return;
       root.traverse((object) => object.layers.enable(1));
@@ -2249,7 +2384,7 @@
       if (!model.gltfMixer || !model.gltfActions) return;
       let wanted = 'run';
       if (game.phase === 'celebrating' || game.phase === 'result') wanted = 'cheer';
-      else if (game.phase === 'countdown' || game.phase === 'title' || game.phase === 'skins') wanted = 'idle';
+      else if (game.phase === 'countdown' || game.phase === 'title' || game.phase === 'skins' || game.phase === 'upgrade') wanted = 'idle';
       else if (p.balloonTime > 0 || p.bumpTime > 0) wanted = 'hit';
       else if (!p.grounded) wanted = 'jump';
       else wanted = 'run';
@@ -3195,18 +3330,21 @@
       const offsets = [-6.4, 4.2, -1.8, 6.2, -5.1, 1.4, -6.8, 3.6];
       let index = 0;
       for (let zone = 0; zone < LEVEL.zones; zone += 1) {
-        for (let slot = 0; slot < pattern.length; slot += 1) {
-          const z = zone * LEVEL.zoneLength + 105 + slot * 72;
-          const x = centerX(z) + offsets[slot];
-          const y = surfaceYAt(x, z) || pathY(z);
-          const type = pattern[(slot + zone) % pattern.length];
-          if (type === 'jelly') createJelly(index, x, y, z);
-          else if (type === 'windmill') createWindmill(index, x, y, z);
-          else if (type === 'caterpillar') createCaterpillar(index, x, y, z);
-          else if (type === 'soft') createSoftMushroom(index, x, y, z);
-          else createBalloon(index, x, y, z);
-          world.obstacles[world.obstacles.length - 1].zone = zone;
-          index += 1;
+        for (let pass = 0; pass < 2; pass += 1) {
+          for (let slot = 0; slot < pattern.length; slot += 1) {
+            const z = zone * LEVEL.zoneLength + (pass === 0 ? 105 : 141) + slot * 72;
+            const offset = offsets[(slot + pass * 3) % offsets.length];
+            const x = centerX(z) + (pass === 0 ? offset : -offset * 0.92);
+            const y = surfaceYAt(x, z) || pathY(z);
+            const type = pattern[(slot + zone + pass * 3) % pattern.length];
+            if (type === 'jelly') createJelly(index, x, y, z);
+            else if (type === 'windmill') createWindmill(index, x, y, z);
+            else if (type === 'caterpillar') createCaterpillar(index, x, y, z);
+            else if (type === 'soft') createSoftMushroom(index, x, y, z);
+            else createBalloon(index, x, y, z);
+            world.obstacles[world.obstacles.length - 1].zone = zone;
+            index += 1;
+          }
         }
       }
       const skyEntries = [
@@ -3701,6 +3839,12 @@
         setScreen(dom.skins, true);
         dom.hud.classList.remove('visible');
         setPhaseModels('preview');
+      } else if (phase === 'upgrade') {
+        hideAllMenus();
+        setScreen(dom.upgradeScreen, true);
+        dom.hud.classList.remove('visible');
+        setPhaseModels('preview');
+        renderUpgradePanel();
       } else if (phase === 'talent') {
         hideAllMenus();
         setScreen(dom.talentScreen, true);
@@ -3817,34 +3961,42 @@
       pick.selected[pid] = next.id;
       if (pid === 0) savedState.characters.selectedP1 = next.id;
       else savedState.characters.selectedP2 = next.id;
+      players[pid].upgradeLevel = upgradeLevelFor(next.id);
       saveCharacters();
       updateCharacterPreview(true);
       playTone({ frequency: direction > 0 ? 880 : 760, duration: 0.08, type: 'sine', volume: 0.11 });
-      if (netIsGuest() && pid === 1) netSend({ t: 'char', id: next.id });
+      if (netIsGuest() && pid === 1) netSend({ t: 'char', id: next.id, upgradeLevel: upgradeLevelFor(next.id) });
     }
 
     function updateCharacterPreview(immediate = false) {
       const pick = game.characterPick || { count: 1, menuOnly: false, selected: {} };
       const def0 = characterDef(pickCharacterId(0));
       const def1 = characterDef(pickCharacterId(1));
-      const skill0 = CHARACTER_SKILLS[def0.skill];
-      const skill1 = CHARACTER_SKILLS[def1.skill];
+      const skill0 = skillDefForCharacter(def0, game.mode);
+      const skill1 = skillDefForCharacter(def1, game.mode);
+      const level0 = netIsHost() && pick.count > 1 ? (players[0].upgradeLevel || 0) : upgradeLevelFor(def0.id);
+      const level1 = netIsHost() && pick.count > 1 ? (NET.pendingGuestUpgrade || 0) : upgradeLevelFor(def1.id);
+      const cooldown0 = skill0.cooldown * UPGRADE_COOLDOWN_MULTIPLIERS[level0];
+      const cooldown1 = skill1.cooldown * UPGRADE_COOLDOWN_MULTIPLIERS[level1];
       if (dom.skinName) {
         dom.skinName.textContent = pick.count > 1 ? `P1 ${def0.name}　·　P2 ${def1.name}` : def0.name;
       }
       if (dom.skinCondition) {
         dom.skinCondition.textContent = pick.count > 1
-          ? `P1 ${skill0.name}：${def0.desc}　｜　P2 ${skill1.name}：${def1.desc}`
-          : `${def0.desc} · 技能：${skill0.name}`;
+          ? `P1 ${skill0.name} Lv.${level0}（冷却 ${cooldown0.toFixed(1)}s）：${skillDescriptionFor(def0, game.mode)}　｜　P2 ${skill1.name} Lv.${level1}（冷却 ${cooldown1.toFixed(1)}s）：${skillDescriptionFor(def1, game.mode)}`
+          : `${skillDescriptionFor(def0, game.mode)} · 技能：${skill0.name} · 冷却 ${cooldown0.toFixed(1)}s · 强化 Lv.${level0}`;
       }
       if (dom.skinUnlockedCount) {
         dom.skinUnlockedCount.textContent = pick.count > 1 ? 'P1：A / D　P2：← / →' : 'A / D 或 ← / →';
       }
+      if (dom.skinUpgrade) dom.skinUpgrade.style.display = pick.menuOnly ? '' : 'none';
       const eyebrow = document.querySelector('#skinScreen .eyebrow');
       if (eyebrow) eyebrow.textContent = pick.count > 1 ? '双方同时选择角色' : '选择你的角色';
       if (dom.skinConfirm) dom.skinConfirm.textContent = pick.menuOnly ? '确认' : (pick.count > 1 ? '双方出发' : '选好出发');
       applyCharacterToPlayer(players[0], def0.id);
+      players[0].upgradeLevel = upgradeLevelFor(def0.id);
       if (pick.count > 1) applyCharacterToPlayer(players[1], def1.id);
+      if (pick.count > 1) players[1].upgradeLevel = upgradeLevelFor(def1.id);
       if (game.phase === 'title' || game.phase === 'skins') {
         players.forEach((p, index) => {
           const model = p.model;
@@ -3883,6 +4035,8 @@
       local: { left: false, right: false, jumpHeld: false, jump: false, skill: false, item: false },
       remote: { left: false, right: false, jumpHeld: false, jump: false, skill: false, item: false },
       pendingChar: null,
+      pendingGuestUpgrade: 0,
+      rewardedMatchKey: '',
       collectedQueue: [],
       collectedSet: new Set(),
       events: [],
@@ -4077,6 +4231,7 @@
       }
       if (msg.t === 'peer-joined') {
         NET.peer = true;
+        NET.pendingGuestUpgrade = 0;
         if (netIsHost()) {
           if (dom.lanStartBtn) dom.lanStartBtn.disabled = false;
           netSetStatus('对方已加入，点「开始选角」开跑', 'ok');
@@ -4090,6 +4245,7 @@
       }
       if (msg.t === 'peer-left') {
         NET.peer = false;
+        NET.pendingGuestUpgrade = 0;
         if (netIsHost()) {
           if (dom.lanStartBtn) dom.lanStartBtn.disabled = true;
           netSetStatus('客机已离开，等待重新加入…', 'warn');
@@ -4113,6 +4269,7 @@
           if (msg.item) r.item = true;
         } else if (msg.t === 'char') {
           NET.pendingChar = msg.id;
+          NET.pendingGuestUpgrade = clamp(Math.floor(numberOr(msg.upgradeLevel, 0)), 0, 3);
           netHostApplyGuestChar();
         } else if (msg.t === 'ping') {
           netSend({ t: 'pong' });
@@ -4134,6 +4291,7 @@
       savedState.characters.selectedP2 = id;
       saveCharacters();
       updateCharacterPreview(true);
+      players[1].upgradeLevel = NET.pendingGuestUpgrade || 0;
     }
 
     function netHostApplyInputs() {
@@ -4155,12 +4313,15 @@
     function netHostSendStart() {
       NET.fullCollected = true;
       NET.started = true;
+      players[0].upgradeLevel = upgradeLevelFor(selectedCharacterId(0));
+      players[1].upgradeLevel = NET.pendingGuestUpgrade || 0;
       netSend({
         t: 'start',
         seed: game.seed,
         mode: game.mode,
         missionId: run.missionId,
         chars: { p1: selectedCharacterId(0), p2: selectedCharacterId(1) },
+        upgrades: { p1: players[0].upgradeLevel, p2: players[1].upgradeLevel },
         pads: world.cloudPads.map((pad) => (pad.active ? 1 : 0)),
         obstacles: world.obstacles.map((ob) => (ob.runEnabled === false ? 0 : 1))
       });
@@ -4189,6 +4350,8 @@
         sheepTime: Number(p.sheepTime.toFixed(2)),
         chargeTime: Number(p.chargeTime.toFixed(2)),
         chargeKind: p.chargeKind || '',
+        skillDelay: Number((p.skillDelay || 0).toFixed(2)),
+        skillCooldown: Number((p.skillCooldown || 0).toFixed(2)),
         balloonTime: Number(p.balloonTime.toFixed(2)),
         recoveryTime: Number(p.recoveryTime.toFixed(2)),
         recoveryTotal: Number(p.recoveryTotal.toFixed(2)),
@@ -4201,6 +4364,7 @@
         coins: p.coins,
         mushrooms: p.mushrooms,
         characterId: p.model ? p.model.characterId : null,
+        upgradeLevel: p.upgradeLevel || 0,
         effects
       };
     }
@@ -4284,6 +4448,10 @@
       });
       players.forEach((p) => { p.netReady = false; });
       refreshPlayerCharacters();
+      const upgrades = msg.upgrades || {};
+      players[0].upgradeLevel = clamp(Math.floor(numberOr(upgrades.p1, 0)), 0, 3);
+      players[1].upgradeLevel = clamp(Math.floor(numberOr(upgrades.p2, 0)), 0, 3);
+      netGuestSyncCharacter();
       updateHud();
     }
 
@@ -4315,6 +4483,8 @@
       p.sheepTime = ps.sheepTime;
       p.chargeTime = ps.chargeTime;
       p.chargeKind = ps.chargeKind || '';
+      p.skillDelay = ps.skillDelay || 0;
+      p.skillCooldown = ps.skillCooldown || 0;
       p.balloonTime = ps.balloonTime;
       p.recoveryTime = ps.recoveryTime;
       p.recoveryTotal = ps.recoveryTotal;
@@ -4326,6 +4496,7 @@
       p.stars = ps.stars;
       p.coins = ps.coins;
       p.mushrooms = ps.mushrooms;
+      p.upgradeLevel = clamp(Math.floor(numberOr(ps.upgradeLevel, p.upgradeLevel || 0)), 0, 3);
       const effects = {};
       Object.entries(ps.effects || {}).forEach(([id, effect]) => {
         effects[id] = {
@@ -4355,6 +4526,7 @@
       (s.collected || []).forEach(netMarkCollected);
       (s.players || []).forEach((ps, index) => { if (players[index]) netApplyPlayerState(players[index], ps); });
       (s.events || []).forEach(netReplayEvent);
+      if (s.phase === 'result') settleCompetitiveStarRewards();
       if (typeof s.paused === 'boolean' && s.paused !== game.paused) togglePause(s.paused);
       if (s.phase && s.phase !== game.phase) netGuestPhase(s.phase);
       if (s.phase === 'countdown') {
@@ -4363,6 +4535,7 @@
         else if (remaining > 1.25) dom.countdownNumber.textContent = '2';
         else if (remaining > 0.25) dom.countdownNumber.textContent = '1';
         else dom.countdownNumber.textContent = '出发!';
+        dom.countdownNumber.classList.toggle('ready', remaining <= 0.25);
       }
     }
 
@@ -4378,10 +4551,10 @@
         const owner = players[event.o];
         if (!owner) return;
         if (event.k === 'question') fireQuestion(owner, true);
-        else if (event.k === 'orb') spawnSkillProjectile(owner, CHARACTER_SKILLS.orb, true);
+        else if (event.k === 'orb') spawnSkillProjectile(owner, effectiveSkillFor(owner), true);
       } else if (event.t === 'slash') {
         const owner = players[event.o];
-        if (owner) spawnSlashEffect(owner, CHARACTER_SKILLS.slash);
+        if (owner) spawnSlashEffect(owner, effectiveSkillFor(owner));
       }
     }
 
@@ -4401,10 +4574,12 @@
           selected: { 0: selectedCharacterId(0), 1: selectedCharacterId(1) }
         };
       }
+      if (phase === 'skins') netGuestSyncCharacter();
       if (phase === 'countdown') {
         dom.countdownEyebrow.textContent = '局域网 1v1';
         dom.countdownTask.textContent = '两台电脑都用 A/D 移动 · W 跳 · Q 技能 · S 问号道具';
         dom.countdownNumber.textContent = '3';
+        dom.countdownNumber.classList.remove('ready');
       }
       setPhase(phase);
     }
@@ -4424,6 +4599,12 @@
       NET.local.jump = false;
       NET.local.skill = false;
       NET.local.item = false;
+    }
+
+    function netGuestSyncCharacter() {
+      if (!netIsGuest()) return false;
+      const id = selectedCharacterId(1);
+      return netSend({ t: 'char', id, upgradeLevel: upgradeLevelFor(id) });
     }
 
     function netGuestFrame(dt) {
@@ -4599,6 +4780,91 @@
       showToast('天赋已解锁', node.name, 'gold');
     }
 
+    function upgradeLevelFor(id) {
+      return clamp(Math.floor(numberOr(savedState.upgrades[id], 0)), 0, 3);
+    }
+
+    function nextUpgradeCost(id) {
+      const level = upgradeLevelFor(id);
+      return level < UPGRADE_COSTS.length ? UPGRADE_COSTS[level] : null;
+    }
+
+    function setPlayerUpgradeFromSave(p) {
+      const characterId = p && p.model ? p.model.characterId : selectedCharacterId(p ? p.id : 0);
+      if (p) p.upgradeLevel = upgradeLevelFor(characterId);
+    }
+
+    function renderUpgradePanel() {
+      if (!dom.upgradeGrid || !dom.upgradeDetail) return;
+      const cursor = clamp(game.upgradeCursor || 0, 0, CHARACTER_DEFS.length - 1);
+      dom.upgradeStarCoins.textContent = `星币：${savedState.stats.starCoins}`;
+      dom.upgradeGrid.innerHTML = '';
+      CHARACTER_DEFS.forEach((def, index) => {
+        const level = upgradeLevelFor(def.id);
+        const card = document.createElement('button');
+        card.type = 'button';
+        card.className = `upgrade-card${index === cursor ? ' active' : ''}`;
+        card.innerHTML = `<span>${def.name}</span><small>强化 Lv.${level}/3</small>`;
+        card.addEventListener('click', () => { game.upgradeCursor = index; renderUpgradePanel(); });
+        dom.upgradeGrid.appendChild(card);
+      });
+      const def = CHARACTER_DEFS[cursor];
+      const nodes = CHARACTER_UPGRADE_DEFS[def.id] || [];
+      const level = upgradeLevelFor(def.id);
+      dom.upgradeDetail.innerHTML = `
+        <div class="mini-note">${skillDefForCharacter(def, 'single').name} / ${skillDefForCharacter(def, 'duo').name}</div>
+        ${nodes.map((node, index) => `
+          <div class="upgrade-node${index < level ? ' unlocked' : ''}">
+            <strong>${index < level ? '✓' : index + 1}</strong>
+            <div><strong>${node.name}</strong><br><small>${node.desc}</small></div>
+            <span class="cost">${index < level ? '已解锁' : `${UPGRADE_COSTS[index]} 星币`}</span>
+          </div>`).join('')}`;
+      const cost = nextUpgradeCost(def.id);
+      dom.upgradeBuy.textContent = cost === null ? '已强化满级' : `强化下一级 · ${cost} 星币`;
+      dom.upgradeBuy.disabled = cost === null;
+    }
+
+    function buyUpgrade() {
+      const def = CHARACTER_DEFS[clamp(game.upgradeCursor || 0, 0, CHARACTER_DEFS.length - 1)];
+      const level = upgradeLevelFor(def.id);
+      if (level >= 3) {
+        showToast('已经满级', `${def.name}的三项强化均已解锁`, 'blue');
+        return false;
+      }
+      const cost = UPGRADE_COSTS[level];
+      if (savedState.stats.starCoins < cost) {
+        showToast('星币不足', `还需要 ${cost - savedState.stats.starCoins} 星币`, 'pink');
+        playSfx('error');
+        return false;
+      }
+      savedState.stats.starCoins -= cost;
+      savedState.upgrades[def.id] = level + 1;
+      saveStats();
+      saveUpgrades();
+      players.forEach(setPlayerUpgradeFromSave);
+      updateTitleStats();
+      renderUpgradePanel();
+      updateCharacterPreview(true);
+      playSfx('unlock');
+      showToast('强化完成', `${def.name} Lv.${level + 1} · ${CHARACTER_UPGRADE_DEFS[def.id][level].name}`, 'gold');
+      return true;
+    }
+
+    function grantStarCoins(amount) {
+      const value = Math.max(0, Math.floor(Number(amount) || 0));
+      savedState.stats.starCoins += value;
+      saveStats();
+      updateTitleStats();
+      renderUpgradePanel();
+      return savedState.stats.starCoins;
+    }
+
+    function openUpgradeScreen() {
+      const selected = selectedCharacterId(0);
+      game.upgradeCursor = Math.max(0, CHARACTER_DEFS.findIndex((def) => def.id === selected));
+      setPhase('upgrade');
+    }
+
     function awardTalentPoints(amount, detail) {
       if (amount <= 0) return;
       savedState.talents.points += amount;
@@ -4658,6 +4924,8 @@
       p.sheepTime = 0;
       p.sheepTotal = 0;
       p.questionHintAt = 0;
+      p.forwardSpeed = 0;
+      p.upgradeLevel = 0;
       if (p.model) {
         p.model.root.visible = true;
         p.model.root.position.set(p.x, p.y, p.z);
@@ -4696,17 +4964,17 @@
     }
 
     function createEnemyPool() {
-      for (let i = 0; i < 6; i += 1) {
+      for (let i = 0; i < 14; i += 1) {
         world.enemies.push({
           index: i, group: createEnemyMesh(), active: false,
-          x: 0, y: 0, z: 0, fireTimer: 2, phase: rand(0, Math.PI * 2)
+          x: 0, y: 0, z: 0, fireTimer: 0.3, fireCount: 0, phase: rand(0, Math.PI * 2)
         });
       }
-      const bulletGeometry = cachedGeometry('enemyBullet', () => new THREE.SphereGeometry(0.42, 8, 6));
+      const bulletGeometry = cachedGeometry('enemyBullet', () => new THREE.SphereGeometry(0.48, 8, 6));
       const bulletMaterial = new THREE.MeshStandardMaterial({
         color: 0xff7ad0, emissive: 0xff3fa8, emissiveIntensity: 0.9, roughness: 0.4
       });
-      for (let i = 0; i < 90; i += 1) {
+      for (let i = 0; i < 240; i += 1) {
         const mesh = outlinedMesh(bulletGeometry, bulletMaterial, 1.08);
         mesh.visible = false;
         scene.add(mesh);
@@ -4742,7 +5010,8 @@
       enemy.x = centerX(z) + side * rand(7, 10);
       enemy.z = z;
       enemy.y = pathY(z) + 3.5;
-      enemy.fireTimer = rand(0.9, 2.0);
+      enemy.fireTimer = rand(0.12, 0.35);
+      enemy.fireCount = 0;
       enemy.phase = rand(0, Math.PI * 2);
       enemy.active = true;
       enemy.group.position.set(enemy.x, enemy.y, enemy.z);
@@ -4768,7 +5037,14 @@
 
     function fireEnemyFan(enemy, def) {
       const origin = new THREE.Vector3(enemy.x, enemy.y - 0.15, enemy.z);
-      const aim = new THREE.Vector3(player.x, player.y + 1.3 * player.sizeScale, player.z + 2).sub(origin);
+      const closingSpeed = Math.max(10, 17 + Math.max(0, player.forwardSpeed || 0));
+      const leadTime = clamp((enemy.z - player.z) / closingSpeed, 0.12, 1.35);
+      const target = new THREE.Vector3(
+        player.x + player.vx * leadTime,
+        player.y + player.vy * leadTime * 0.55 + 1.3 * player.sizeScale,
+        player.z + (player.forwardSpeed || 0) * leadTime
+      );
+      const aim = target.sub(origin);
       if (aim.lengthSq() < 0.0001) return;
       aim.normalize();
       const count = Math.max(1, def.bullets);
@@ -4814,10 +5090,11 @@
         enemy.group.position.y = enemy.y + Math.sin(enemy.phase) * 0.22;
         enemy.group.rotation.y += dt * 0.9;
         const dz = enemy.z - player.z;
-        if (dz > 2 && dz < 60) {
+        if (dz > 4 && dz < 70 && (enemy.fireCount || 0) < 2) {
           enemy.fireTimer -= dt;
           if (enemy.fireTimer <= 0) {
             fireEnemyFan(enemy, def);
+            enemy.fireCount = (enemy.fireCount || 0) + 1;
             enemy.fireTimer = def.fireInterval * rand(0.9, 1.15);
           }
         }
@@ -4837,7 +5114,7 @@
           deactivateBullet(bullet);
           continue;
         }
-        const radius = 0.9 + 0.42 * clamp(player.sizeScale, 0.5, 8);
+        const radius = (0.9 + 0.42 * clamp(player.sizeScale, 0.5, 8)) * 1.1;
         const dx = bullet.x - player.x;
         const dy = bullet.y - (player.y + 1.3 * player.sizeScale);
         const dz = bullet.z - player.z;
@@ -4850,11 +5127,11 @@
 
     function damagePlayer(amount = 1) {
       if (game.mode !== 'single' || game.phase !== 'running' || !run.active) return false;
-      if (game.iframeTimer > 0 || player.recoveryTime > 0 || hasEffect(player, 'invincible')) return false;
+      if (game.iframeTimer > 0 || player.recoveryTime > 0 || isPlayerInvincible(player)) return false;
       const def = difficultyDef(game.difficulty);
       player.hearts = Math.max(0, (player.hearts || 0) - amount);
       game.iframeTimer = def.iframe;
-      game.shake = Math.max(game.shake || 0, 0.16);
+      game.shake = 0;
       player.vx += (Math.random() < 0.5 ? -1 : 1) * 4.5;
       player.forwardBonus = clamp(player.forwardBonus - 3, -12, 12);
       spawnBurst(new THREE.Vector3(player.x, player.y + 1.6, player.z), 0xff8fc7, 14, 6.0, 0.7);
@@ -4912,27 +5189,54 @@
       return true;
     }
 
-    function destroyEnemy(enemy) {
+    function destroyEnemy(enemy, source = 'skill', killer = player) {
       if (!enemy.active) return false;
       const position = enemy.group.position.clone();
       deactivateEnemy(enemy);
       spawnBurst(position, 0xff8fc7, 18, 7.0, 0.9);
       playSfx('pop');
       registerDestroy();
+      if (source === 'giant' && game.mode === 'single' && killer && hasEffect(killer, 'giantSkill')) {
+        const threshold = (killer.upgradeLevel || 0) >= 3 ? 1 : 3;
+        run.giantCrushKills = (run.giantCrushKills || 0) + 1;
+        if (run.giantCrushKills >= threshold && tryHealPlayer(killer, 1)) {
+          run.giantCrushKills = 0;
+        } else if (run.giantCrushKills >= threshold) {
+          run.giantCrushKills = threshold;
+        }
+        updateHud();
+      }
       return true;
     }
 
     function isCrushing(p) {
-      return hasEffect(p, 'giantSkill') || hasEffect(p, 'giant');
+      return hasEffect(p, 'giantSkill') || hasEffect(p, 'giant') ||
+        (p.chargeKind === 'roll' && p.chargeTime > 0 && (p.upgradeLevel || 0) >= 3 && game.mode === 'single');
     }
 
     function playerOverlapsObstacle(p, obstacle) {
       const scale = clamp(p.sizeScale, 0.5, 8);
       const dx = p.x - obstacle.x;
       const dz = p.z - obstacle.z;
-      const reach = obstacle.radius * Math.max(1, scale * 0.55) + 1.1 * scale;
+      const crushBoost = game.mode === 'single' && hasEffect(p, 'giantSkill') && (p.upgradeLevel || 0) >= 2 ? 1.25 : 1;
+      const reach = (obstacle.radius * Math.max(1, scale * 0.55) + 1.1 * scale) * crushBoost;
       if (dx * dx + dz * dz > reach * reach) return false;
       return p.y + 3.4 * scale > obstacle.groundY - 1.2 && p.y < obstacle.groundY + 6.4 * scale;
+    }
+
+    function resolveEnemyInteractions(p) {
+      if (game.mode !== 'single' || !p.active || !isCrushing(p)) return;
+      const crushBoost = hasEffect(p, 'giantSkill') && (p.upgradeLevel || 0) >= 2 ? 1.25 : 1;
+      for (const enemy of world.enemies) {
+        if (!enemy.active) continue;
+        const dx = enemy.x - p.x;
+        const dy = enemy.y - (p.y + 1.6 * p.sizeScale);
+        const dz = enemy.z - p.z;
+        const radius = (1.25 * p.sizeScale + 1.15) * crushBoost;
+        if (dx * dx + dy * dy + dz * dz <= radius * radius) {
+          destroyEnemy(enemy, 'giant', p);
+        }
+      }
     }
 
     function resetRun(selectMission = true, seedOverride = null) {
@@ -4949,6 +5253,7 @@
       run.checkpointIndex = 0;
       run.deaths = 0;
       run.destroyed = 0;
+      run.giantCrushKills = 0;
       run.halfShown = false;
       game.elapsed = 0;
       game.accumulator = 0;
@@ -4959,6 +5264,8 @@
       game.raceSettled = false;
       game.winner = null;
       game.finishOrder = [];
+      game.starRewardSettled = false;
+      game.competitiveStarReward = 0;
       game.historyTimer = 0;
       game.shake = 0;
       clearProjectiles();
@@ -4971,6 +5278,10 @@
         if (pad.group) pad.group.visible = pad.active;
       });
       players.forEach((p, index) => resetPlayerState(p, index));
+      players.forEach((p) => {
+        const id = selectedCharacterId(p.id);
+        p.upgradeLevel = savedState.upgrades[id] || 0;
+      });
       player.hearts = difficultyDef(game.difficulty).hearts;
       game.iframeTimer = 0;
       game.enemySpawnTimer = 2;
@@ -5021,6 +5332,7 @@
         dom.countdownTask.textContent = TASKS[run.missionId].label;
       }
       dom.countdownNumber.textContent = '3';
+      dom.countdownNumber.classList.remove('ready');
     }
 
     function startRunning() {
@@ -5034,10 +5346,12 @@
 
     function returnToTitle() {
       game.paused = false;
+      game.shake = 0;
       setSplitScreen(false);
       clearProjectiles();
       clearPowerProjectiles();
       inputs.forEach((item) => { item.left = false; item.right = false; item.jumpQueued = false; item.jumpHeld = false; });
+      dom.countdownNumber.classList.remove('ready');
       setPhase('title');
     }
 
@@ -5054,6 +5368,7 @@
       game.paused = force === undefined ? !game.paused : Boolean(force);
       setScreen(dom.pauseScreen, game.paused);
       if (game.paused) {
+        game.shake = 0;
         clearProjectiles();
         clearPowerProjectiles();
         inputs.forEach((item) => { item.left = false; item.right = false; item.jumpQueued = false; });
@@ -5109,6 +5424,21 @@
         else if (code === 'ArrowDown' || code === 'KeyD') selectDifficulty(1);
         else if (code === 'Space' || code === 'Enter' || code === 'NumpadEnter') confirmDifficulty();
         else if (code === 'Escape') returnToTitle();
+        return;
+      }
+      if (game.phase === 'upgrade') {
+        if (code === 'ArrowLeft' || code === 'KeyA' || code === 'Numpad4') {
+          game.upgradeCursor = (clamp(game.upgradeCursor || 0, 0, CHARACTER_DEFS.length - 1) - 1 + CHARACTER_DEFS.length) % CHARACTER_DEFS.length;
+          renderUpgradePanel();
+        } else if (code === 'ArrowRight' || code === 'KeyD' || code === 'Numpad6') {
+          game.upgradeCursor = (clamp(game.upgradeCursor || 0, 0, CHARACTER_DEFS.length - 1) + 1) % CHARACTER_DEFS.length;
+          renderUpgradePanel();
+        } else if (code === 'Space' || code === 'Enter' || code === 'NumpadEnter') {
+          buyUpgrade();
+        } else if (code === 'Escape') {
+          setPhase('skins');
+          updateCharacterPreview(true);
+        }
         return;
       }
       if (game.phase === 'skins') {
@@ -5186,8 +5516,11 @@
       dom.skinMenuButton.addEventListener('click', () => {
         ensureAudio();
         game.pendingCharacterReturn = false;
+        game.mode = 'single';
+        game.activePlayers = 1;
         beginCharacterSelection(1, false);
       });
+      if (dom.skinUpgrade) dom.skinUpgrade.addEventListener('click', () => { ensureAudio(); openUpgradeScreen(); });
       dom.contactButton.addEventListener('click', () => { ensureAudio(); setPhase('contact'); });
       if (dom.difficultyConfirm) dom.difficultyConfirm.addEventListener('click', () => { ensureAudio(); confirmDifficulty(); });
       if (dom.difficultyBack) dom.difficultyBack.addEventListener('click', () => { netTeardownToTitle(); returnToTitle(); });
@@ -5218,6 +5551,8 @@
       if (dom.lanBackBtn) dom.lanBackBtn.addEventListener('click', () => { netDisconnect(); netTeardownToTitle(); returnToTitle(); });
       dom.skinConfirm.addEventListener('click', () => { ensureAudio(); confirmCharacterSelection(); });
       dom.skinBack.addEventListener('click', () => returnToTitle());
+      if (dom.upgradeBuy) dom.upgradeBuy.addEventListener('click', () => { ensureAudio(); buyUpgrade(); });
+      if (dom.upgradeBack) dom.upgradeBack.addEventListener('click', () => { setPhase('skins'); updateCharacterPreview(true); });
       dom.talentBack.addEventListener('click', () => returnToTitle());
       dom.contactBack.addEventListener('click', () => returnToTitle());
       dom.resume.addEventListener('click', () => {
@@ -5292,9 +5627,10 @@
       if (hasEffect(p, 'speed')) multiplier *= BUFF_DEFS.speed.multiplier;
       if (hasEffect(p, 'roll')) multiplier *= BUFF_DEFS.roll.multiplier;
       if (hasEffect(p, 'dash')) multiplier *= BUFF_DEFS.dash.multiplier;
+      if (hasEffect(p, 'invincible') && effectiveSkillFor(p).id === 'guard') multiplier *= 1.1;
       const giantStack = giantStacks(p);
       if (giantStack > 0) multiplier *= Math.pow(0.85, giantStack);
-      if (p.chargeTime > 0 && p.chargeKind === 'roll') multiplier *= CHARACTER_SKILLS.roll.speed;
+      if (p.chargeTime > 0 && p.chargeKind === 'roll') multiplier *= effectiveSkillFor(p).speed;
       return clamp(multiplier, 0.5, 2);
     }
 
@@ -5308,6 +5644,7 @@
       if (p.effects.shield.charges <= 0) delete p.effects.shield;
       spawnBurst(new THREE.Vector3(p.x, p.y + 2, p.z), 0xfff0a6, 10, 4.2, 0.7);
       playTone({ frequency: 980, slideTo: 1420, duration: 0.22, type: 'sine', volume: 0.12 });
+      updateHud();
       return true;
     }
 
@@ -5340,7 +5677,7 @@
     function applyTrap(p, type) {
       const def = TRAP_DEFS[type];
       if (!def) return false;
-      if (hasEffect(p, 'invincible')) {
+      if (isPlayerInvincible(p)) {
         showToast('无敌挡下了陷阱', def.name, 'blue');
         return false;
       }
@@ -5377,6 +5714,90 @@
       const table = game.mode === 'single' ? SKILL_BY_MODE.single : SKILL_BY_MODE.duo;
       const id = (def && table[def.id]) || 'slash';
       return CHARACTER_SKILLS[id] || CHARACTER_SKILLS.slash;
+    }
+
+    function skillDefForCharacter(def, mode = game.mode) {
+      if (!def) return CHARACTER_SKILLS.slash;
+      const table = mode === 'single' ? SKILL_BY_MODE.single : SKILL_BY_MODE.duo;
+      return CHARACTER_SKILLS[table[def.id]] || CHARACTER_SKILLS.slash;
+    }
+
+    function skillDescriptionFor(def, mode = game.mode) {
+      if (!def) return '';
+      const skill = skillDefForCharacter(def, mode);
+      return mode === 'single' && skill.singleDescription ? skill.singleDescription : skill.description;
+    }
+
+    function effectiveSkillFor(p) {
+      const skill = { ...characterSkillFor(p) };
+      const level = clamp(p && p.upgradeLevel ? p.upgradeLevel : 0, 0, 3);
+      skill.upgradeLevel = level;
+      skill.cooldown *= UPGRADE_COOLDOWN_MULTIPLIERS[level];
+
+      if (skill.id === 'slash') {
+        if (level >= 1) skill.range *= 1.25;
+        if (level >= 2) skill.push *= 1.3;
+        if (level >= 3) skill.push *= 1.25;
+      } else if (skill.id === 'swordwave') {
+        if (level >= 1) {
+          skill.range *= 1.3;
+          skill.radius *= 1.15;
+        }
+        if (level >= 2) skill.speed *= 1.2;
+        if (level >= 3) skill.endBurstRadius = 5;
+      } else if (skill.id === 'guard') {
+        if (level >= 1) skill.duration *= 1.25;
+        if (level >= 2) skill.speedBoost = 0.1;
+        if (level >= 3) skill.shieldCharges = 2;
+      } else if (skill.id === 'orb') {
+        if (level >= 1) skill.sheepTime *= 1.25;
+        if (level >= 2) skill.radius *= 1.25;
+        if (level >= 3) skill.shieldCharges = 2;
+      } else if (skill.id === 'grow') {
+        if (level >= 1) skill.duration *= 1.25;
+        if (level >= 2) skill.crushRadiusMult = 1.25;
+        if (level >= 3) {
+          if (game.mode === 'single') skill.healThreshold = 1;
+          else {
+            skill.duration += 2;
+            skill.pushMult = 1.25;
+          }
+        }
+      } else if (skill.id === 'roll') {
+        if (level >= 1) skill.speed *= 1.2;
+        if (level >= 2) skill.controlMult = 1.3;
+        if (level >= 3) {
+          if (game.mode === 'single') skill.crush = true;
+          else skill.pushMult = 1.3;
+        }
+      }
+      return skill;
+    }
+
+    function isPlayerInvincible(p) {
+      return hasEffect(p, 'invincible') ||
+        (game.mode === 'single' && hasEffect(p, 'giantSkill')) ||
+        (p.chargeKind === 'roll' && p.chargeTime > 0 && (p.upgradeLevel || 0) >= 2);
+    }
+
+    function grantShieldCharges(p, charges) {
+      if (!p || charges <= 0) return false;
+      p.effects.shield = {
+        id: 'shield', buff: true, time: 999, duration: 999, charges
+      };
+      spawnBurst(new THREE.Vector3(p.x, p.y + 2, p.z), 0xfff0a6, 14, 4.8, 0.8);
+      showToast('星盾展开！', `可抵挡 ${charges} 次负面效果`, 'blue');
+      return true;
+    }
+
+    function tryHealPlayer(p, amount = 1) {
+      const maxHearts = difficultyDef(game.difficulty).hearts;
+      if ((p.hearts || 0) >= maxHearts) return false;
+      p.hearts = Math.min(maxHearts, (p.hearts || 0) + amount);
+      showToast('坚韧恢复！', `恢复 ${amount} 颗心`, 'blue');
+      playSfx('mission');
+      updateHud();
+      return true;
     }
 
     function skillLabel(p) {
@@ -5440,7 +5861,8 @@
         kind: 'sword', skill: 'sword', visualOnly: false,
         ownerId: p.id, targetId: p.id === 0 ? 1 : 0,
         speed: skill.speed, range: skill.range, radius: skill.radius,
-        dirX: 0, dirZ: 1, traveled: 0, color: skill.color
+        dirX: 0, dirZ: 1, traveled: 0, color: skill.color,
+        endBurstRadius: skill.endBurstRadius || 0
       };
       scene.add(group);
       world.powerProjectiles.push(group);
@@ -5489,7 +5911,8 @@
     }
 
     function performCharacterSkill(p, skill) {
-      if (skill === CHARACTER_SKILLS.slash) {
+      if (skill.shieldCharges > 0) grantShieldCharges(p, skill.shieldCharges);
+      if (skill.id === 'slash') {
         const target = players[p.id === 0 ? 1 : 0];
         let hit = false;
         if (target && target.active && target.sheepTime <= 0) {
@@ -5504,25 +5927,26 @@
         playTone({ frequency: hit ? 260 : 420, slideTo: hit ? 640 : 540, duration: 0.18, type: 'sawtooth', volume: 0.12 });
         return true;
       }
-      if (skill === CHARACTER_SKILLS.grow) {
+      if (skill.id === 'grow') {
         p.effects.giantSkill = {
           id: 'giantSkill',
           buff: true,
           time: skill.duration,
           duration: skill.duration
         };
+        if (game.mode === 'single' && (p.upgradeLevel || 0) >= 3) tryHealPlayer(p, 1);
         spawnBurst(new THREE.Vector3(p.x, p.y + 2.4, p.z), skill.color, 24, 8.5, 1.0);
-        showToast('蛮人变大！', '体型 500%，推挤更有分量', 'blue');
+        showToast('蛮人变大！', game.mode === 'single' ? '体型 500%，无敌碾压前方' : '体型 500%，推挤更有分量', 'blue');
         playTone({ frequency: 200, slideTo: 460, duration: 0.34, type: 'triangle', volume: 0.14 });
         return true;
       }
-      if (skill === CHARACTER_SKILLS.swordwave) {
+      if (skill.id === 'swordwave') {
         spawnSwordWave(p, skill);
         spawnBurst(new THREE.Vector3(p.x, p.y + 1.6, p.z + 1.4), skill.color, 12, 5.5, 0.6);
         playTone({ frequency: 620, slideTo: 1250, duration: 0.22, type: 'sawtooth', volume: 0.11 });
         return true;
       }
-      if (skill === CHARACTER_SKILLS.guard) {
+      if (skill.id === 'guard') {
         p.effects.invincible = {
           id: 'invincible', buff: true, time: skill.duration, duration: skill.duration, charges: 0
         };
@@ -5531,7 +5955,7 @@
         playTone({ frequency: 540, slideTo: 1040, duration: 0.3, type: 'sine', volume: 0.13 });
         return true;
       }
-      if (skill === CHARACTER_SKILLS.roll) {
+      if (skill.id === 'roll') {
         p.chargeTime = skill.duration;
         p.chargeTotal = skill.duration;
         p.chargeKind = 'roll';
@@ -5546,7 +5970,7 @@
     function releaseSkill(p) {
       if (!p || !p.active || game.phase !== 'running' || game.paused) return false;
       if (p.stamina < SKILL_CONFIG.max || p.skillCooldown > 0) return false;
-      const skill = characterSkillFor(p);
+      const skill = effectiveSkillFor(p);
       p.stamina = 0;
       p.skillCooldown = skill.cooldown;
       p.skillDelay = SKILL_CONFIG.refillDelay;
@@ -5736,6 +6160,27 @@
       [...world.powerProjectiles].forEach(removePowerProjectile);
     }
 
+    function destroyBySwordAt(position, radius) {
+      let destroyed = 0;
+      for (const obstacle of world.obstacles) {
+        if (obstacle.destroyed || !obstacle.group.visible) continue;
+        if (Math.abs(obstacle.z - position.z) < radius + 1.4 &&
+            Math.abs(obstacle.x - position.x) < radius + 1.6 &&
+            Math.abs(obstacle.groundY - position.y) < radius + 4.5) {
+          if (destroyObstacle(obstacle)) destroyed += 1;
+        }
+      }
+      for (const enemy of world.enemies) {
+        if (!enemy.active) continue;
+        if (Math.abs(enemy.z - position.z) < radius + 1.6 &&
+            Math.abs(enemy.x - position.x) < radius + 2.2 &&
+            Math.abs(enemy.y - position.y) < radius + 2.6) {
+          if (destroyEnemy(enemy, 'sword')) destroyed += 1;
+        }
+      }
+      return destroyed;
+    }
+
     function updateSkillProjectiles(dt) {
       if (!dt) return;
       for (let i = world.powerProjectiles.length - 1; i >= 0; i -= 1) {
@@ -5749,25 +6194,13 @@
           projectile.position.z += data.dirZ * data.speed * dt;
           projectile.rotation.y += dt * 8;
           data.traveled += data.speed * dt;
-          if (game.mode === 'single') {
-            for (const obstacle of world.obstacles) {
-              if (obstacle.destroyed || !obstacle.group.visible) continue;
-              if (Math.abs(obstacle.z - projectile.position.z) < data.radius + 1.4 &&
-                  Math.abs(obstacle.x - projectile.position.x) < data.radius + 1.6 &&
-                  Math.abs(obstacle.groundY - projectile.position.y) < data.radius + 4.5) {
-                destroyObstacle(obstacle);
-              }
-            }
-            for (const enemy of world.enemies) {
-              if (!enemy.active) continue;
-              if (Math.abs(enemy.z - projectile.position.z) < data.radius + 1.6 &&
-                  Math.abs(enemy.x - projectile.position.x) < data.radius + 2.2 &&
-                  Math.abs(enemy.y - projectile.position.y) < data.radius + 2.6) {
-                destroyEnemy(enemy);
-              }
-            }
-          }
+          if (game.mode === 'single') destroyBySwordAt(projectile.position, data.radius);
           if (data.traveled > data.range) {
+            if (game.mode === 'single' && data.endBurstRadius > 0) {
+              const destroyed = destroyBySwordAt(projectile.position, data.endBurstRadius);
+              spawnBurst(projectile.position.clone(), 0xfff0a6, destroyed ? 28 : 18, 8.5, 1.0);
+              playSfx('mission');
+            }
             removePowerProjectile(projectile);
             continue;
           }
@@ -5846,7 +6279,7 @@
           if (!def) continue;
           const chip = document.createElement('span');
           chip.className = `effect-chip ${effect.buff ? 'buff' : 'trap'}`;
-          const time = effect.id === 'shield' ? '1次' : `${Math.max(0, effect.time).toFixed(1)}s`;
+          const time = effect.id === 'shield' ? `${Math.max(1, effect.charges || 1)}次` : `${Math.max(0, effect.time).toFixed(1)}s`;
           chip.textContent = `${def.short} ${time}`;
           container.appendChild(chip);
         }
@@ -5875,20 +6308,23 @@
     function renderSkillHud() {
       const render = (container, p) => {
         if (!container) return;
-        const skill = characterSkillFor(p);
+        const skill = effectiveSkillFor(p);
         const ready = p.stamina >= SKILL_CONFIG.max && p.skillDelay <= 0 && p.skillCooldown <= 0;
         const percent = clamp(p.stamina / SKILL_CONFIG.max * 100, 0, 100);
         const keyHint = p.id === 0 ? 'Q' : '小键盘0';
         let state = ready ? '技能已就绪' : '奔跑积攒中';
         if (p.skillCooldown > 0) state = `冷却 ${p.skillCooldown.toFixed(1)}s`;
         const questionKey = p.id === 0 ? 'S' : '↓';
+        const giantCounter = game.mode === 'single' && skill.id === 'grow'
+          ? `<div class="skill-extra${run.giantCrushKills > 0 ? '' : ' empty'}">碾压 ${run.giantCrushKills}/${(p.upgradeLevel || 0) >= 3 ? 1 : 3} 小怪回血</div>`
+          : '';
         const question = game.mode === 'duo'
           ? `<div class="skill-extra${p.questionCharges > 0 ? '' : ' empty'}">问号道具 ×${p.questionCharges} · 按 ${questionKey} 发射</div>`
-          : `<div class="skill-extra${run.destroyed > 0 ? '' : ' empty'}">摧毁 ${run.destroyed}/3 · 满 3 个转 3 金币</div>`;
+          : giantCounter || `<div class="skill-extra${run.destroyed > 0 ? '' : ' empty'}">摧毁 ${run.destroyed}/3 · 满 3 个转 3 金币</div>`;
         container.innerHTML = `
           <div class="skill-wrap ${ready ? 'ready' : ''}">
             <div class="skill-head">
-              <span class="skill-name">${skill.name} · ${keyHint}</span>
+              <span class="skill-name">${skill.name} Lv.${p.upgradeLevel || 0} · ${keyHint}</span>
               <span class="skill-state">${state}</span>
             </div>
             <div class="skill-track"><div class="skill-fill" style="width:${percent.toFixed(1)}%"></div></div>
@@ -6188,7 +6624,7 @@
     }
 
     function blockPlayerNegative(p, label) {
-      if (hasEffect(p, 'invincible')) {
+      if (isPlayerInvincible(p)) {
         showToast('无敌挡下了影响', label, 'blue');
         return true;
       }
@@ -6200,6 +6636,7 @@
     }
 
     function beginRecovery(p) {
+      game.shake = 0;
       if (p.sheepTime > 0) endSheep(p);
       if (p.recoveryTime > 0 || !p.active) return;
       p.fellCount += 1;
@@ -6254,6 +6691,7 @@
         p.vx = 0;
         p.vy = 0;
         p.forwardBonus = 0;
+        p.forwardSpeed = 0;
         p.grounded = true;
         if (p.recoveryTime <= 0) {
           if (players.every((item) => item.recoveryTime <= 0)) dom.recovery.classList.remove('visible');
@@ -6268,6 +6706,7 @@
         p.vx = 0;
         p.vy = 0;
         p.forwardBonus = 0;
+        p.forwardSpeed = 0;
         p.inputX = 0;
         p.grounded = true;
         if (p.model && p.model.sheepShell) p.model.sheepShell.visible = true;
@@ -6314,7 +6753,8 @@
       }
       const speed = baseSpeed * speedMultiplier(p);
       p.forwardBonus = lerp(p.forwardBonus, 0, 1 - Math.exp(-2.25 * dt));
-      p.z += (speed + p.forwardBonus) * dt;
+      p.forwardSpeed = Math.max(0, speed + p.forwardBonus);
+      p.z += p.forwardSpeed * dt;
 
       let controlSpeed = p.grounded ? 22 : 16.5;
       if (hasTalent('a3')) controlSpeed *= 1.15;
@@ -6327,7 +6767,8 @@
       p.vx += clamp(targetVelocity - p.vx, -maxDelta, maxDelta);
       if (p.chargeTime > 0 && p.chargeKind === 'roll') {
         // 翻滚时左右键直接改变滚动方向；不按方向键则笔直向前滚。
-        p.vx = inputX * (p.grounded ? 30 : 24);
+        const rollControl = (p.upgradeLevel || 0) >= 2 ? 1.3 : 1;
+        p.vx = inputX * (p.grounded ? 30 : 24) * rollControl;
       }
       p.x += p.vx * dt;
 
@@ -6363,6 +6804,7 @@
 
       updateEffects(p, dt);
       resolveObstacleInteractions(p, dt);
+      resolveEnemyInteractions(p);
 
       if (p.balloonTime > 0) {
         p.balloonTime -= dt;
@@ -6419,11 +6861,11 @@
       for (const obstacle of world.obstacles) {
         obstacle.cooldown = Math.max(0, obstacle.cooldown - dt);
         if (obstacle.destroyed || !obstacle.group.visible || obstacle.cooldown > 0 || obstacle.runEnabled === false) continue;
-        if (game.mode === 'single' && hasEffect(p, 'invincible')) continue;
         if (game.mode === 'single' && isCrushing(p) && playerOverlapsObstacle(p, obstacle)) {
           destroyObstacle(obstacle);
           continue;
         }
+        if (game.mode === 'single' && isPlayerInvincible(p)) continue;
         const dx = p.x - obstacle.x;
         const dz = p.z - obstacle.z;
         const horizontalSq = dx * dx + dz * dz;
@@ -6506,8 +6948,8 @@
       const dx = a.x - b.x;
       const dz = a.z - b.z;
       const dy = a.y - b.y;
-      const radiusA = 1.45 * a.sizeScale;
-      const radiusB = 1.45 * b.sizeScale;
+      const radiusA = 1.45 * a.sizeScale * activeSkillCollisionRadiusMultiplier(a);
+      const radiusB = 1.45 * b.sizeScale * activeSkillCollisionRadiusMultiplier(b);
       const radius = radiusA + radiusB;
       const distanceSq = dx * dx + dz * dz;
       if (distanceSq > radius * radius || Math.abs(dy) > 2.8 * Math.max(a.sizeScale, b.sizeScale)) return;
@@ -6527,11 +6969,11 @@
       const chargeA = a.chargeTime > 0 ? 1.65 : 1;
       const chargeB = b.chargeTime > 0 ? 1.65 : 1;
       const base = 4.2 + relSpeed * 0.3;
-      const pushA = base * clamp(weightB / Math.max(0.4, weightA), 0.5, 2.0) * chargeB;
-      const pushB = base * clamp(weightA / Math.max(0.4, weightB), 0.5, 2.0) * chargeA;
+      const pushA = base * clamp(weightB / Math.max(0.4, weightA), 0.5, 2.0) * chargeB * activeSkillPushMultiplier(b);
+      const pushB = base * clamp(weightA / Math.max(0.4, weightB), 0.5, 2.0) * chargeA * activeSkillPushMultiplier(a);
 
-      const aBlocked = hasEffect(a, 'invincible') || blockPlayerNegative(a, '玩家撞击');
-      const bBlocked = hasEffect(b, 'invincible') || blockPlayerNegative(b, '玩家撞击');
+      const aBlocked = isPlayerInvincible(a) || blockPlayerNegative(a, '玩家撞击');
+      const bBlocked = isPlayerInvincible(b) || blockPlayerNegative(b, '玩家撞击');
 
       if (!aBlocked && !aSheep) {
         a.vx = clamp(a.vx - direction * pushA * 0.62, -34, 34);
@@ -6553,7 +6995,7 @@
 
       a.collisionCooldown = 0.28;
       b.collisionCooldown = 0.28;
-      game.shake = Math.max(game.shake || 0, 0.05 + Math.min(0.05, relSpeed * 0.004));
+      game.shake = Math.min(0.04, Math.max(game.shake || 0, 0.018 + Math.min(0.022, relSpeed * 0.002)));
       spawnBurst(new THREE.Vector3((a.x + b.x) * 0.5, p_center_y(a, b), (a.z + b.z) * 0.5), 0xfff0a6, 8, 5.0, 0.5);
       playTone({ frequency: 170, slideTo: 360, duration: 0.16, type: 'triangle', volume: 0.11 });
     }
@@ -6567,6 +7009,7 @@
       if (run.finishing || game.phase !== 'running') return;
       run.finishing = true;
       run.active = false;
+      game.shake = 0;
       player.z = LEVEL.finishLine;
       player.x = centerX(LEVEL.finishLine);
       player.y = pathY(LEVEL.finishLine) + 0.03;
@@ -6595,6 +7038,7 @@
       run.missionComplete = progress.complete;
       run.rating = ratingFor(run.missionComplete, run.stars, run.deaths);
       savedState.stats.totalStars += run.stars;
+      savedState.stats.starCoins += run.stars;
       savedState.stats.totalCoins += run.coins;
       savedState.stats.totalMushrooms += run.mushrooms;
       savedState.stats.totalRuns += 1;
@@ -6607,9 +7051,35 @@
       updateTitleStats();
     }
 
+    function settleCompetitiveStarRewards() {
+      if (game.starRewardSettled) return 0;
+      let amount = 0;
+      if (netActive()) {
+        const localId = netIsGuest() ? NET.localId : 0;
+        const rewardKey = `${NET.room}:${game.seed}:${localId}`;
+        if (NET.rewardedMatchKey === rewardKey) {
+          game.starRewardSettled = true;
+          return game.competitiveStarReward || 0;
+        }
+        NET.rewardedMatchKey = rewardKey;
+        amount = Math.max(0, Math.floor(players[localId] ? players[localId].stars : 0));
+      } else {
+        amount = Math.max(0, Math.floor(players[0].stars + players[1].stars));
+      }
+      game.starRewardSettled = true;
+      game.competitiveStarReward = amount;
+      if (amount > 0) {
+        savedState.stats.starCoins += amount;
+        saveStats();
+        updateTitleStats();
+      }
+      return amount;
+    }
+
     function beginDuoFinish(winner) {
       if (game.raceSettled) return;
       game.raceSettled = true;
+      game.shake = 0;
       clearProjectiles();
       clearPowerProjectiles();
       game.winner = winner.id;
@@ -6617,6 +7087,7 @@
       game.celebrationTime = 0;
       setPhase('celebrating');
       const loser = players[winner.id === 0 ? 1 : 0];
+      settleCompetitiveStarRewards();
       awardTalentPoints(2, `${winner.id === 0 ? 'P1' : 'P2'} 获胜`);
       awardTalentPoints(1, `${loser.id === 0 ? 'P1' : 'P2'} 完成竞速`);
       spawnBurst(new THREE.Vector3(winner.x, winner.y + 2.5, winner.z), 0xffe273, 28, 8.5, 1.3);
@@ -6641,7 +7112,7 @@
           <div class="result-item">P2 星星<strong>${players[1].stars}</strong></div>
           <div class="result-item">P2 金币<strong>${players[1].coins}</strong></div>
           <div class="result-item">P2 蘑菇<strong>${players[1].mushrooms}</strong></div>`;
-        dom.unlockMessage.textContent = '双人收集数据不写入单人累计统计，可继续换角色再跑。';
+        dom.unlockMessage.textContent = `本局获得 ${game.competitiveStarReward} 星币；双人收集数据不写入单人累计统计。`;
         dom.changeHat.disabled = false;
         return;
       }
@@ -6658,7 +7129,7 @@
       dom.resultCoins.textContent = String(run.coins);
       dom.resultMushrooms.textContent = String(run.mushrooms);
       dom.resultGrid2.innerHTML = '';
-      dom.unlockMessage.textContent = `难度 ${difficultyDef(game.difficulty).name} · 阵亡 ${run.deaths} 次 · 累计星光 ${savedState.stats.totalStars} · 天赋点 ${savedState.talents.points}。`;
+      dom.unlockMessage.textContent = `难度 ${difficultyDef(game.difficulty).name} · 阵亡 ${run.deaths} 次 · 本局星币 +${run.stars} · 星币余额 ${savedState.stats.starCoins}。`;
       dom.changeHat.disabled = false;
     }
 
@@ -6711,9 +7182,9 @@
       const model = p.model;
       if (!model) return;
       const duoCharacterPreview = game.phase === 'skins' && game.characterPick && game.characterPick.count > 1;
-      const previewing = (game.phase === 'title' || game.phase === 'skins') && (p.id === 0 || duoCharacterPreview);
+      const previewing = (game.phase === 'title' || game.phase === 'skins' || game.phase === 'upgrade') && (p.id === 0 || duoCharacterPreview);
       if (previewing) {
-        const selecting = game.phase === 'skins';
+        const selecting = game.phase === 'skins' || game.phase === 'upgrade';
         const offset = duoCharacterPreview ? (p.id === 0 ? -2.2 : 2.2) : 0;
         if (selecting) {
           const yaw = Math.PI + (duoCharacterPreview ? (p.id === 0 ? 0.32 : -0.32) : 0.26);
@@ -6830,7 +7301,7 @@
 
     function updateCharacters(dt) {
       players.forEach((p) => {
-        if (p.active || game.phase === 'title' || game.phase === 'skins' || game.phase === 'celebrating' || game.phase === 'result') animateModel(p, dt);
+        if (p.active || game.phase === 'title' || game.phase === 'skins' || game.phase === 'upgrade' || game.phase === 'celebrating' || game.phase === 'result') animateModel(p, dt);
       });
     }
 
@@ -6838,6 +7309,10 @@
       const next = Boolean(value) && game.mode === 'duo';
       if (next === game.splitScreen) return;
       game.splitScreen = next;
+      if (next) {
+        if (world.cameraBase && camera) world.cameraBase.copy(camera.position);
+        if (world.cameraBase2 && camera) world.cameraBase2.copy(camera.position);
+      }
       if (dom.splitDivider) dom.splitDivider.classList.toggle('visible', next);
       updateCameraAspects();
     }
@@ -6855,7 +7330,7 @@
       else if (game.splitScreen && dz < SPLIT_EXIT_Z && dx < SPLIT_EXIT_X) setSplitScreen(false);
     }
 
-    function updateFollowCamera(cam, p, desired, look, dt, fov) {
+    function updateFollowCamera(cam, p, desired, look, dt, fov, base) {
       if (!cam || !desired || !look) return;
       desired.set(
         p.x * 0.52 + centerX(p.z) * 0.48,
@@ -6864,10 +7339,23 @@
       );
       look.set(p.x * 0.6 + centerX(p.z) * 0.4, p.y + 2.3, p.z + 9.5);
       const factor = 1 - Math.exp(-dt * 6.5);
-      cam.position.lerp(desired, factor);
+      if (!base) return;
+      base.lerp(desired, factor);
+      cam.position.copy(base);
       cam.fov = fov;
       cam.lookAt(look);
       cam.updateProjectionMatrix();
+    }
+
+    function applyCameraShake(cam, base, amplitude) {
+      if (!cam || !base) return;
+      cam.position.copy(base);
+      const shake = clamp(amplitude || 0, 0, 0.08);
+      if (shake <= 0) return;
+      const phase = game.elapsed * 34;
+      cam.position.x += Math.sin(phase * 1.37) * shake;
+      cam.position.y += Math.sin(phase * 1.91 + 1.2) * shake * 0.7;
+      cam.position.z += Math.sin(phase * 1.13 + 2.4) * shake * 0.35;
     }
 
     function updateCamera(dt) {
@@ -6876,8 +7364,10 @@
       if (!world.cameraLook) world.cameraLook = new THREE.Vector3();
       if (!world.cameraDesired2) world.cameraDesired2 = new THREE.Vector3();
       if (!world.cameraLook2) world.cameraLook2 = new THREE.Vector3();
+      if (!world.cameraBase) world.cameraBase = camera.position.clone();
+      if (!world.cameraBase2) world.cameraBase2 = camera2 ? camera2.position.clone() : new THREE.Vector3();
       const factor = 1 - Math.exp(-dt * 6.5);
-      if (game.phase === 'title' || game.phase === 'skins') {
+      if (game.phase === 'title' || game.phase === 'skins' || game.phase === 'upgrade') {
         const z = 28;
         const selecting = game.phase === 'skins';
         const duoPick = selecting && game.characterPick && game.characterPick.count > 1;
@@ -6894,14 +7384,19 @@
           world.cameraLook.set(centerX(z), pathY(z) + 2.2, z + 0.2);
           camera.fov = 50;
         }
-        camera.position.lerp(world.cameraDesired, factor);
+        world.cameraBase.lerp(world.cameraDesired, factor);
+        camera.position.copy(world.cameraBase);
+        game.shake = 0;
         camera.lookAt(world.cameraLook);
         camera.updateProjectionMatrix();
         return;
       }
       if (game.mode === 'duo' && game.splitScreen) {
-        updateFollowCamera(camera, players[0], world.cameraDesired, world.cameraLook, dt, 62);
-        updateFollowCamera(camera2, players[1], world.cameraDesired2, world.cameraLook2, dt, 62);
+        updateFollowCamera(camera, players[0], world.cameraDesired, world.cameraLook, dt, 62, world.cameraBase);
+        updateFollowCamera(camera2, players[1], world.cameraDesired2, world.cameraLook2, dt, 62, world.cameraBase2);
+        applyCameraShake(camera, world.cameraBase, game.shake);
+        applyCameraShake(camera2, world.cameraBase2, game.shake);
+        game.shake = Math.max(0, game.shake - dt * 1.4);
         return;
       }
       if (game.mode === 'duo') {
@@ -6920,14 +7415,9 @@
         world.cameraLook.set(player.x * 0.6 + centerX(player.z) * 0.4, player.y + 2.3, player.z + 9.5);
         camera.fov = 58 + clamp((player.z / LEVEL.endZ) * 4, 0, 4);
       }
-      camera.position.lerp(world.cameraDesired, factor);
-      if (game.shake > 0) {
-        const shake = game.shake;
-        camera.position.x += (Math.random() - 0.5) * shake;
-        camera.position.y += (Math.random() - 0.5) * shake;
-        camera.position.z += (Math.random() - 0.5) * shake * 0.4;
-        game.shake = Math.max(0, game.shake - dt * 1.1);
-      }
+      world.cameraBase.lerp(world.cameraDesired, factor);
+      applyCameraShake(camera, world.cameraBase, game.shake);
+      game.shake = Math.max(0, game.shake - dt * 1.4);
       camera.lookAt(world.cameraLook);
       camera.updateProjectionMatrix();
     }
@@ -6956,6 +7446,7 @@
       else if (remaining > 1.25) dom.countdownNumber.textContent = '2';
       else if (remaining > 0.25) dom.countdownNumber.textContent = '1';
       else dom.countdownNumber.textContent = '出发!';
+      dom.countdownNumber.classList.toggle('ready', remaining <= 0.25);
       if (game.countdownTime >= 3.62) startRunning();
     }
 
@@ -7089,11 +7580,14 @@
             missionComplete: run.missionComplete,
             rating: run.rating,
             difficulty: game.difficulty,
+            starCoins: savedState.stats.starCoins,
             hearts: player.hearts,
             deaths: run.deaths,
             enemies: world.enemies.filter((enemy) => enemy.active).length,
             bullets: world.enemyBullets.filter((bullet) => bullet.active).length,
+            obstacles: world.obstacles.filter((obstacle) => !obstacle.destroyed && obstacle.runEnabled !== false).length,
             destroyed: run.destroyed,
+            giantCrushKills: run.giantCrushKills,
             seed: game.seed,
             player: { x: player.x, y: player.y, z: player.z },
             players: players.map((p) => ({
@@ -7103,6 +7597,8 @@
               stamina: p.stamina, skillDelay: p.skillDelay, questionCharges: p.questionCharges,
               bumpTime: p.bumpTime, skillCooldown: p.skillCooldown, chargeTime: p.chargeTime,
               chargeKind: p.chargeKind, sheepTime: p.sheepTime, forwardBonus: p.forwardBonus,
+              forwardSpeed: p.forwardSpeed, upgradeLevel: p.upgradeLevel || 0,
+              skillCooldownTotal: effectiveSkillFor(p).cooldown,
               sizeScale: p.sizeScale, pickupScale: clamp(p.sizeScale, 0.5, 8),
               weapons: visibleWeaponNames(p),
               inkAmount: Number(inkAmountFor(p).toFixed(3)),
@@ -7116,6 +7612,7 @@
             totals: clone(savedState.stats),
             skins: clone(savedState.skins),
             characters: clone(savedState.characters),
+            upgrades: clone(savedState.upgrades),
             selectedCharacters: {
               p1: selectedCharacterId(0),
               p2: selectedCharacterId(1)
@@ -7157,6 +7654,15 @@
           const enemy = spawnEnemyAt(targetZ);
           return enemy ? clone(api.getState()) : false;
         },
+        spawnEnemyShot(z) {
+          if (game.mode !== 'single') return false;
+          const targetZ = clamp(Number(z) || player.z + 30, 0, LEVEL.endZ);
+          const enemy = spawnEnemyAt(targetZ);
+          if (!enemy) return false;
+          fireEnemyFan(enemy, difficultyDef(game.difficulty));
+          enemy.fireCount = 1;
+          return clone(api.getState());
+        },
         hitPlayer(count = 1) {
           if (game.mode !== 'single' || game.phase !== 'running' || !run.active) return false;
           const hits = clamp(Math.floor(Number(count) || 1), 1, 99);
@@ -7179,6 +7685,26 @@
           deactivateAllEnemies();
           clearEnemyBullets();
           updateHud();
+          return true;
+        },
+        grantStarCoins(amount = 0) {
+          return grantStarCoins(amount);
+        },
+        setUpgrade(characterId, level) {
+          const def = characterDef(characterId);
+          if (!def || def.id !== characterId) return false;
+          savedState.upgrades[def.id] = clamp(Math.floor(Number(level) || 0), 0, 3);
+          saveUpgrades();
+          players.forEach(setPlayerUpgradeFromSave);
+          updateTitleStats();
+          renderUpgradePanel();
+          return savedState.upgrades[def.id];
+        },
+        resetUpgrades() {
+          savedState.upgrades = clone(DEFAULT_UPGRADES);
+          saveUpgrades();
+          players.forEach(setPlayerUpgradeFromSave);
+          renderUpgradePanel();
           return true;
         },
         setMode(mode) {
@@ -7277,7 +7803,7 @@
           return true;
         },
         setCameraShake(amount = 0.3) {
-          game.shake = Math.max(0, Number(amount) || 0);
+          game.shake = clamp(Number(amount) || 0, 0, 0.08);
           return true;
         },
         setCharacter(playerId, id) {
@@ -7288,6 +7814,7 @@
           else savedState.characters.selectedP2 = def.id;
           saveCharacters();
           applyCharacterToPlayer(players[pid], def.id);
+          setPlayerUpgradeFromSave(players[pid]);
           return true;
         },
         setSplitScreen(value) {
@@ -7370,12 +7897,15 @@
           savedState.characters = clone(DEFAULT_CHARACTERS);
           savedState.settings = clone(DEFAULT_SETTINGS);
           savedState.talents = clone(DEFAULT_TALENTS);
-          saveStats(); saveSkins(); saveCharacters(); saveSettings(); saveTalents();
+          savedState.upgrades = clone(DEFAULT_UPGRADES);
+          saveStats(); saveSkins(); saveCharacters(); saveSettings(); saveTalents(); saveUpgrades();
           updateTitleStats();
           updateAudioButton();
           refreshPlayerCharacters();
+          players.forEach(setPlayerUpgradeFromSave);
           updateCharacterPreview(true);
           renderTalentPanel();
+          renderUpgradePanel();
           return true;
         },
         selfTest() {
@@ -7386,6 +7916,7 @@
             ['B below star boundary', ratingFor(true, LEVEL.aStarTarget - 1) === 'B'],
             ['death caps rating at B', ratingFor(true, LEVEL.aStarTarget, 1) === 'B'],
             ['four difficulties', DIFFICULTY_DEFS.length === 4 && DIFFICULTY_DEFS[0].id === 'nap' && DIFFICULTY_DEFS[3].id === 'nightmare'],
+            ['doubled difficulty values', DIFFICULTY_DEFS.every((def, index) => def.speed === [1.7, 2, 2.4, 2.7][index] && def.enemyMax === [2, 4, 8, 12][index] && def.bullets === [2, 6, 12, 18][index])],
             ['difficulty fallback', difficultyDef('invalid').id === 'dream'],
             ['settings difficulty fallback', normalizeSettings({ difficulty: 'invalid' }).difficulty === 'dream'],
             ['single knight swordwave', SKILL_BY_MODE.single.knight === 'swordwave'],
@@ -7401,15 +7932,17 @@
             ['cloud platforms standable', world.branches.every((b) => surfaceYAt(b.x, b.z, b.topY + 0.5) === b.topY)],
             ['five bonus cloud pads', world.cloudPads.length === 5],
             ['active bonus pads standable', world.cloudPads.filter((pad) => pad.active).every((pad) => surfaceYAt(pad.x, pad.z, pad.topY + 0.5) === pad.topY)],
-            ['high-density obstacles', world.obstacles.length >= 72],
+            ['doubled obstacle inventory', world.obstacles.length >= 149],
             ['powerup inventory', world.powerups.length === 54],
             ['nine buffs', Object.keys(BUFF_DEFS).length === 9],
             ['four traps', Object.keys(TRAP_DEFS).length === 4],
             ['nine talents', TALENT_DEFS.length === 9],
             ['four characters', CHARACTER_DEFS.length === 4],
             ['six mode skills', Object.keys(CHARACTER_SKILLS).length === 6],
-            ['enemy pool six', world.enemies.length === 6],
-            ['enemy bullet pool ninety', world.enemyBullets.length === 90],
+            ['enemy pool fourteen', world.enemies.length === 14],
+            ['enemy bullet pool expanded', world.enemyBullets.length === 240],
+            ['four upgrade trees', CHARACTER_DEFS.every((def) => CHARACTER_UPGRADE_DEFS[def.id] && CHARACTER_UPGRADE_DEFS[def.id].length === 3)],
+            ['upgrade costs and cooldowns', UPGRADE_COSTS.join(',') === '30,70,150' && UPGRADE_COOLDOWN_MULTIPLIERS.join(',') === '2,1.8,1.6,1.4'],
             ['characters map to skills', CHARACTER_DEFS.every((def) => Boolean(CHARACTER_SKILLS[def.skill]))],
             ['rogue skill is roll', CHARACTER_DEFS.find((def) => def.id === 'rogue').skill === 'roll'],
             ['mage skill turns sheep', CHARACTER_SKILLS.orb.sheepTime > 0],
@@ -7420,6 +7953,8 @@
             ['split screen thresholds', SPLIT_ENTER_Z > SPLIT_EXIT_Z && SPLIT_ENTER_X > SPLIT_EXIT_X],
             ['trap cap documented', Object.keys(TRAP_DEFS).length <= 4],
             ['storage normalization', normalizeStats({ totalStars: -2 }).totalStars === 0],
+            ['star coin migration', normalizeStats({ totalStars: 88 }).starCoins === 88],
+            ['upgrade normalization', normalizeUpgrades({ knight: 9, mage: -2 }).knight === 3 && normalizeUpgrades({ knight: 9, mage: -2 }).mage === 0],
             ['talent normalization', normalizeTalents({ points: -2, unlocked: ['a1'] }).points === 0],
             ['character normalization', normalizeCharacters({ selectedP1: 'unknown', selectedP2: 'mage' }).selectedP1 === 'knight'],
             ['lan off by default', NET.role === 'off'],
