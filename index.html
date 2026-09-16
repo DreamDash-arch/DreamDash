@@ -1035,7 +1035,7 @@
       <div class="glass">
         <div class="eyebrow">同一网络 · 两台电脑</div>
         <h2>局域网联机</h2>
-        <div id="lanStatus" class="mini-note">两台电脑各用 <strong>A / D / W / Q / S</strong> 控制自己的角色。</div>
+        <div id="lanStatus" class="mini-note">在线房间：朋友点链接即可加入，双方各用 <strong>A / D / W / Q / S</strong> 控制自己的角色。</div>
         <div class="lan-panel">
           <button id="lanHostBtn" class="btn primary" type="button">创建房间（我是主机）</button>
         </div>
@@ -3749,6 +3749,37 @@
       txCount: 0
     };
 
+    // 在线中继地址（Cloudflare Workers + Durable Objects 部署后填入）
+    const ONLINE_RELAY_WS = '';
+    const ONLINE_SHARE_BASE = 'https://dreamdash-arch.github.io/DreamDash/';
+    const ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+    function newRoomCode() {
+      const bytes = new Uint8Array(4);
+      if (window.crypto && window.crypto.getRandomValues) window.crypto.getRandomValues(bytes);
+      else for (let i = 0; i < bytes.length; i += 1) bytes[i] = Math.floor(Math.random() * 256);
+      return Array.from(bytes).map((b) => ROOM_CODE_ALPHABET[b % ROOM_CODE_ALPHABET.length]).join('');
+    }
+
+    async function resolveRelayEndpoint() {
+      const override = params.get('relay');
+      if (override) return { ws: override, source: 'cloud', label: '在线中继（自定义）' };
+      if (location.protocol === 'http:' || location.protocol === 'https:') {
+        try {
+          const res = await fetch('/version', { cache: 'no-store' });
+          if (res.ok) {
+            const data = await res.json();
+            if (data && data.server === 'local') {
+              const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+              return { ws: `${proto}//${location.host}/ws`, source: 'local', label: '局域网直连' };
+            }
+          }
+        } catch (error) { /* 本机没有 server.py，继续走在线中继 */ }
+      }
+      if (ONLINE_RELAY_WS) return { ws: ONLINE_RELAY_WS, source: 'cloud', label: '在线中继' };
+      return { ws: '', source: 'none', label: '' };
+    }
+
     function netActive() { return NET.role !== 'off'; }
     function netIsHost() { return NET.role === 'host'; }
     function netIsGuest() { return NET.role === 'guest'; }
@@ -3770,26 +3801,35 @@
       }
     }
 
-    function netWsUrl(role, room, hostOverride) {
-      const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const host = hostOverride || location.host;
-      return `${proto}//${host}/ws?role=${role}&room=${encodeURIComponent(room || '')}`;
+    function netWsUrl(baseUrl, role, room) {
+      const url = new URL(baseUrl, location.href);
+      url.searchParams.set('role', role);
+      if (room) url.searchParams.set('room', room);
+      return url.toString();
     }
 
     function netParseTarget(raw) {
       const text = String(raw || '').trim();
       const here = location.host;
-      if (!text) return { host: here, room: '' };
-      if (/^[A-Za-z0-9]{4}$/.test(text)) return { host: here, room: text.toUpperCase() };
+      if (!text) return { host: here, room: '', explicit: false, secure: false };
+      if (/^[A-Za-z0-9]{4}$/.test(text)) {
+        return { host: here, room: text.toUpperCase(), explicit: false, secure: false };
+      }
       try {
         const url = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(text) ? text : `http://${text}`);
-        return { host: url.host, room: (url.searchParams.get('room') || '').toUpperCase() };
+        return {
+          host: url.host,
+          room: (url.searchParams.get('room') || '').toUpperCase(),
+          explicit: true,
+          secure: url.protocol === 'https:'
+        };
       } catch (error) {
-        return { host: here, room: text.toUpperCase() };
+        return { host: here, room: text.toUpperCase(), explicit: false, secure: false };
       }
     }
 
     function netDisconnect(silent = false) {
+      NET.manualClose = true;
       if (NET.ws) {
         try {
           NET.ws.onclose = null;
@@ -3804,16 +3844,21 @@
       if (!silent) NET.role = 'off';
     }
 
-    function netConnect(role, room, hostOverride) {
+    function netConnect(role, room, baseUrl, attempt = 0) {
       netDisconnect(true);
+      NET.manualClose = false;
+      NET.fatal = false;
       NET.role = role;
       NET.localId = role === 'host' ? 0 : 1;
       NET.room = String(room || '').toUpperCase();
+      NET.lastConnect = { role, room: NET.room, url: baseUrl, attempt };
       if (dom.lanRoomInfo) dom.lanRoomInfo.classList.add('hidden');
-      netSetStatus(role === 'host' ? '正在创建房间…' : '正在连接主机…');
+      netSetStatus(attempt > 0
+        ? `正在重新连接…（第 ${attempt}/4 次）`
+        : (role === 'host' ? '正在创建房间…' : '正在连接主机…'));
       let ws;
       try {
-        ws = new WebSocket(netWsUrl(role, NET.room, hostOverride));
+        ws = new WebSocket(netWsUrl(baseUrl, role, NET.room));
       } catch (error) {
         NET.role = 'off';
         netSetStatus(`无法连接：${error && error.message ? error.message : '地址无效'}`, 'warn');
@@ -3825,19 +3870,30 @@
       };
       ws.onmessage = (event) => netHandleMessage(event.data);
       ws.onerror = () => {
-        netSetStatus('连接失败：请确认主机已运行 server.py，且地址/端口正确', 'warn');
+        if (!NET.connected) netSetStatus('连接失败：中继不可达，请检查网络或改用局域网直连', 'warn');
       };
-      ws.onclose = () => {
+      ws.onclose = (event) => {
         const wasGuest = netIsGuest();
         NET.connected = false;
         NET.peer = false;
+        if (NET.manualClose) return;
+        const canRetry = NET.lastConnect && attempt < 4 && event && event.code !== 4001 && !NET.fatal;
+        if (canRetry) {
+          const delay = 1000 * Math.pow(2, attempt);
+          netSetStatus(`连接断开，${Math.round(delay / 1000)} 秒后重连（第 ${attempt + 1}/4 次）…`, 'warn');
+          setTimeout(() => {
+            if (NET.manualClose || !NET.lastConnect) return;
+            netConnect(role, NET.room, NET.lastConnect.url, attempt + 1);
+          }, delay);
+          return;
+        }
         if (wasGuest) {
-          netSetStatus('与主机断开连接', 'warn');
+          netSetStatus('房主已离开或房间不存在，可让房主重新创建后加入', 'warn');
           NET.role = 'off';
-          showToast('已断开联机', '主机连接中断，可重新加入', 'pink');
+          showToast('已断开联机', '房主可能已离开，可重新加入', 'pink');
           setPhase('lan');
         } else if (netIsHost()) {
-          netSetStatus('客机已离开，等待重新加入…', 'warn');
+          netSetStatus('连接中断：客机可稍后重新加入，你的房间码不变', 'warn');
         }
       };
       return true;
@@ -3855,19 +3911,21 @@
         NET.urls = msg.urls || [];
         NET.peer = false;
         if (netIsHost()) {
+          const local = NET.source === 'local';
           const bases = (NET.urls && NET.urls.length) ? NET.urls : [`${location.origin}/`];
-          NET.shareUrl = `${bases[0]}?room=${NET.room}`;
+          const base = local ? bases[0] : ONLINE_SHARE_BASE;
+          NET.shareUrl = `${base}${base.includes('?') ? '&' : '?'}room=${NET.room}`;
           if (dom.lanUrl) {
-            const alt = bases.slice(1).map((url) => `${url}?room=${NET.room}`);
+            const alt = local && bases.length > 1 ? bases.slice(1).map((url) => `${url}?room=${NET.room}`) : [];
             dom.lanUrl.textContent = alt.length
               ? `${NET.shareUrl}\n(如果连不上，也可以试：\n${alt.join('\n')})`
               : NET.shareUrl;
           }
           if (dom.lanRoomInfo) dom.lanRoomInfo.classList.remove('hidden');
           if (dom.lanStartBtn) dom.lanStartBtn.disabled = true;
-          netSetStatus(`房间 ${NET.room} 已创建，等待对方加入…`, 'ok');
+          netSetStatus(`房间 ${NET.room} 已创建（${local ? '局域网直连' : '在线中继'}），把链接发给对方…`, 'ok');
         } else {
-          netSetStatus(`已加入房间 ${NET.room}，等待主机开始…`, 'ok');
+          netSetStatus(`已加入房间 ${NET.room}（${NET.source === 'local' ? '局域网直连' : '在线中继'}），等待主机开始…`, 'ok');
         }
         return;
       }
@@ -3876,6 +3934,11 @@
         if (netIsHost()) {
           if (dom.lanStartBtn) dom.lanStartBtn.disabled = false;
           netSetStatus('对方已加入，点「开始选角」开跑', 'ok');
+          if (NET.started && game.phase !== 'title' && game.phase !== 'lan') {
+            // 中途重连：重发本局 seed/角色/机关状态 + 一份完整快照
+            netHostSendStart();
+            netSend(netBuildSnapshot());
+          }
         }
         return;
       }
@@ -3888,6 +3951,7 @@
         return;
       }
       if (msg.t === 'error') {
+        NET.fatal = true;
         netSetStatus(msg.message || '连接被拒绝', 'warn');
         return;
       }
@@ -4243,29 +4307,39 @@
       if (netIsGuest()) netSendLocalInput();
     }
 
-    function startLanHost() {
-      if (/github\.io$/i.test(location.hostname)) {
-        netSetStatus('联机需要在本机运行 server.py，然后打开它给出的局域网地址', 'warn');
+    async function startLanHost() {
+      setPhase('lan');
+      netSetStatus('正在准备房间…');
+      const endpoint = await resolveRelayEndpoint();
+      if (!endpoint.ws) {
+        netSetStatus('暂时没有可用的中继：联机需要作者完成在线部署，或在本机运行 server.py', 'warn');
+        return;
+      }
+      NET.source = endpoint.source;
+      netConnect('host', newRoomCode(), endpoint.ws);
+    }
+
+    async function startLanGuest(raw) {
+      const target = netParseTarget(raw);
+      if (!target.room) {
+        netSetStatus('请输入 4 位房间码，或房主给你的完整链接', 'warn');
         setPhase('lan');
         return;
       }
-      netConnect('host', '');
       setPhase('lan');
-    }
-
-    function startLanGuest(raw) {
-      const target = netParseTarget(raw);
-      if (!target.room) {
-        netSetStatus('请输入 4 位房间码，或房主页面上显示的完整地址', 'warn');
+      netSetStatus('正在连接主机…');
+      let endpoint;
+      if (target.explicit && target.host && target.host !== location.host) {
+        endpoint = { ws: `${target.secure ? 'wss:' : 'ws:'}//${target.host}/ws`, source: 'local', label: '局域网直连' };
+      } else {
+        endpoint = await resolveRelayEndpoint();
+      }
+      if (!endpoint.ws) {
+        netSetStatus('暂时没有可用的中继：联机需要作者完成在线部署，或在本机运行 server.py', 'warn');
         return;
       }
-      const onPages = /github\.io$/i.test(location.hostname);
-      if (onPages && target.host === location.host) {
-        netSetStatus('请先打开房主给你的局域网地址（形如 http://192.168.x.x:8000/?room=XXXX）', 'warn');
-        return;
-      }
-      netConnect('guest', target.room, target.host);
-      setPhase('lan');
+      NET.source = endpoint.source;
+      netConnect('guest', target.room, endpoint.ws);
     }
 
     function startLanMatch() {
@@ -4654,7 +4728,7 @@
       dom.contactButton.addEventListener('click', () => { ensureAudio(); setPhase('contact'); });
       dom.lanButton.addEventListener('click', () => {
         ensureAudio();
-        netSetStatus('两台电脑各用 A / D / W / Q / S 控制自己的角色。');
+        netSetStatus('在线房间：朋友点链接即可加入；也可以在本机运行 server.py 做局域网直连。');
         setPhase('lan');
       });
       if (dom.lanHostBtn) dom.lanHostBtn.addEventListener('click', () => { ensureAudio(); startLanHost(); });

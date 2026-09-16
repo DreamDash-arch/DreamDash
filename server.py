@@ -313,7 +313,7 @@ class Handler(SimpleHTTPRequestHandler):
         if parsed.path == "/ws":
             return self.handle_websocket(parsed)
         if parsed.path == "/version":
-            body = json.dumps({"version": VERSION, "urls": LAN_URLS}).encode("utf-8")
+            body = json.dumps({"server": "local", "version": VERSION, "urls": LAN_URLS}).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
