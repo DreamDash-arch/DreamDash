@@ -3764,7 +3764,8 @@
     async function resolveRelayEndpoint() {
       const override = params.get('relay');
       if (override) return { ws: override, source: 'cloud', label: '在线中继（自定义）' };
-      if (location.protocol === 'http:' || location.protocol === 'https:') {
+      const staticHost = /(^|\.)github\.io$/i.test(location.hostname);
+      if (!staticHost && (location.protocol === 'http:' || location.protocol === 'https:')) {
         try {
           const res = await fetch('/version', { cache: 'no-store' });
           if (res.ok) {
