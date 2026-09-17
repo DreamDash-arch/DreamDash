@@ -639,6 +639,14 @@
       transform: translateY(-2px);
     }
 
+    .difficulty-card.locked {
+      opacity: .55;
+      filter: grayscale(.55);
+      cursor: not-allowed;
+    }
+
+    .difficulty-card.locked small { color: #8b5c78; font-weight: 900; }
+
     #heartsHud {
       left: 18px;
       top: 74px;
@@ -1409,7 +1417,8 @@
       characters: 'dreamrun_characters',
       settings: 'dreamrun_settings',
       talents: 'dreamrun_talents',
-      upgrades: 'dreamrun_upgrades'
+      upgrades: 'dreamrun_upgrades',
+      progress: 'dreamrun_progress'
     };
 
     const LEVEL = {
@@ -1452,7 +1461,7 @@
     ];
 
     function difficultyDef(id) {
-      return DIFFICULTY_DEFS.find((item) => item.id === id) || DIFFICULTY_DEFS[1];
+      return DIFFICULTY_DEFS.find((item) => item.id === id) || DIFFICULTY_DEFS[0];
     }
 
     const TASKS = {
@@ -1508,7 +1517,7 @@
       },
       swordwave: {
         id: 'swordwave', name: '骑士剑气', short: '剑气', color: 0xbfe0ff, stamina: 1, cooldown: 3,
-        speed: 42, range: 40, radius: 3.2,
+        speed: 126, range: 360, radius: 6.4, duration: 2.86,
         description: '释放可穿透的剑气，连续摧毁前方障碍与小怪；每摧毁 3 个目标转化为金币。'
       },
       guard: {
@@ -1630,10 +1639,13 @@
     };
 
     const DEFAULT_SKINS = { unlocked: ['cloud'], selected: 'cloud' };
-    const DEFAULT_CHARACTERS = { selectedP1: 'knight', selectedP2: 'mage' };
-    const DEFAULT_SETTINGS = { muted: false, difficulty: 'dream' };
+    const DEFAULT_CHARACTERS = { selectedP1: 'mage', selectedP2: 'mage', unlocked: ['mage'] };
+    const DEFAULT_SETTINGS = { muted: false, difficulty: 'nap' };
     const DEFAULT_TALENTS = { points: 0, unlocked: ['root'] };
     const DEFAULT_UPGRADES = { knight: 0, barbarian: 0, rogue: 0, mage: 0 };
+    const DEFAULT_PROGRESS = { unlockedDifficulties: ['nap'], clearedDifficulties: [], playedRuns: 0 };
+    const CHARACTER_UNLOCK_COSTS = { rogue: 300, knight: 600 };
+    const BARBARIAN_RUNS_REQUIRED = 3;
 
     const params = new URLSearchParams(window.location.search);
     const DEBUG = params.get('debug') === '1';
@@ -1730,12 +1742,53 @@
       return { unlocked, selected };
     }
 
-    function normalizeCharacters(value) {
+    function normalizeCharacters(value, progress) {
       const ids = CHARACTER_DEFS.map((item) => item.id);
       const pick = (raw, fallback) => ids.includes(raw) ? raw : fallback;
+      const selectedP1 = pick(value && value.selectedP1, DEFAULT_CHARACTERS.selectedP1);
+      const selectedP2 = pick(value && value.selectedP2, DEFAULT_CHARACTERS.selectedP2);
+      const unlocked = ['mage'];
+      const hasUnlockData = value && Array.isArray(value.unlocked);
+      const addUnlocked = (id) => {
+        if (ids.includes(id) && !unlocked.includes(id)) unlocked.push(id);
+      };
+      const rawUnlocked = value && Array.isArray(value.unlocked) ? value.unlocked : [];
+      rawUnlocked.forEach(addUnlocked);
+      if (!hasUnlockData) {
+        addUnlocked(selectedP1);
+        addUnlocked(selectedP2);
+      }
+      if (progress && progress.playedRuns >= BARBARIAN_RUNS_REQUIRED) addUnlocked('barbarian');
       return {
-        selectedP1: pick(value && value.selectedP1, DEFAULT_CHARACTERS.selectedP1),
-        selectedP2: pick(value && value.selectedP2, DEFAULT_CHARACTERS.selectedP2)
+        selectedP1: unlocked.includes(selectedP1) ? selectedP1 : 'mage',
+        selectedP2: unlocked.includes(selectedP2) ? selectedP2 : 'mage',
+        unlocked
+      };
+    }
+
+    function normalizeProgress(value, settings, legacyRuns = 0) {
+      const rawUnlocked = value && Array.isArray(value.unlockedDifficulties) ? value.unlockedDifficulties : [];
+      const rawCleared = value && Array.isArray(value.clearedDifficulties) ? value.clearedDifficulties : [];
+      const unlocked = ['nap'];
+      const addWithPrerequisites = (id) => {
+        const index = DIFFICULTY_DEFS.findIndex((item) => item.id === id);
+        if (index < 0) return;
+        for (let i = 0; i <= index; i += 1) {
+          if (!unlocked.includes(DIFFICULTY_DEFS[i].id)) unlocked.push(DIFFICULTY_DEFS[i].id);
+        }
+      };
+      const settingIndex = DIFFICULTY_DEFS.findIndex((item) => item.id === (settings && settings.difficulty));
+      if (settingIndex >= 0) addWithPrerequisites(DIFFICULTY_DEFS[settingIndex].id);
+      rawUnlocked.forEach(addWithPrerequisites);
+      const cleared = [];
+      DIFFICULTY_DEFS.forEach((def) => {
+        if (rawCleared.includes(def.id) && !cleared.includes(def.id)) cleared.push(def.id);
+      });
+      const hasPlayedRuns = value && typeof value.playedRuns === 'number' && Number.isFinite(value.playedRuns);
+      return {
+        unlockedDifficulties: unlocked,
+        clearedDifficulties: cleared,
+        playedRuns: Math.max(0, Math.floor(hasPlayedRuns ? value.playedRuns : legacyRuns))
       };
     }
 
@@ -1743,7 +1796,7 @@
       const ids = DIFFICULTY_DEFS.map((item) => item.id);
       return {
         muted: Boolean(value && value.muted),
-        difficulty: ids.includes(value && value.difficulty) ? value.difficulty : 'dream'
+        difficulty: ids.includes(value && value.difficulty) ? value.difficulty : 'nap'
       };
     }
 
@@ -1759,13 +1812,17 @@
       };
     }
 
+    const initialStats = normalizeStats(readJSON(STORAGE_KEYS.stats, DEFAULT_STATS));
+    const initialSettings = normalizeSettings(readJSON(STORAGE_KEYS.settings, DEFAULT_SETTINGS));
+    const initialProgress = normalizeProgress(readJSON(STORAGE_KEYS.progress, null), initialSettings, initialStats.totalRuns);
     const savedState = {
-      stats: normalizeStats(readJSON(STORAGE_KEYS.stats, DEFAULT_STATS)),
+      stats: initialStats,
       skins: normalizeSkins(readJSON(STORAGE_KEYS.skins, DEFAULT_SKINS)),
-      characters: normalizeCharacters(readJSON(STORAGE_KEYS.characters, DEFAULT_CHARACTERS)),
-      settings: normalizeSettings(readJSON(STORAGE_KEYS.settings, DEFAULT_SETTINGS)),
+      characters: normalizeCharacters(readJSON(STORAGE_KEYS.characters, DEFAULT_CHARACTERS), initialProgress),
+      settings: initialSettings,
       talents: normalizeTalents(readJSON(STORAGE_KEYS.talents, DEFAULT_TALENTS)),
-      upgrades: normalizeUpgrades(readJSON(STORAGE_KEYS.upgrades, DEFAULT_UPGRADES))
+      upgrades: normalizeUpgrades(readJSON(STORAGE_KEYS.upgrades, DEFAULT_UPGRADES)),
+      progress: initialProgress
     };
 
     function saveStats() {
@@ -1790,6 +1847,79 @@
 
     function saveUpgrades() {
       writeJSON(STORAGE_KEYS.upgrades, savedState.upgrades);
+    }
+
+    function saveProgress() {
+      writeJSON(STORAGE_KEYS.progress, savedState.progress);
+    }
+
+    function isDifficultyUnlocked(id) {
+      return savedState.progress.unlockedDifficulties.includes(id);
+    }
+
+    function isCharacterUnlocked(id) {
+      return savedState.characters.unlocked.includes(id);
+    }
+
+    function characterUnlockRequirement(def) {
+      if (!def || isCharacterUnlocked(def.id)) return { kind: 'unlocked', text: '已解锁' };
+      if (def.id === 'barbarian') {
+        const current = Math.min(savedState.progress.playedRuns, BARBARIAN_RUNS_REQUIRED);
+        return { kind: 'runs', current, required: BARBARIAN_RUNS_REQUIRED, text: `正式游玩 ${current}/${BARBARIAN_RUNS_REQUIRED} 局解锁` };
+      }
+      const cost = CHARACTER_UNLOCK_COSTS[def.id] || 0;
+      return { kind: 'coins', cost, text: `${cost} 金币解锁` };
+    }
+
+    function unlockCharacter(id, showMessage = true) {
+      const def = characterDef(id);
+      if (!def || isCharacterUnlocked(def.id)) return true;
+      const requirement = characterUnlockRequirement(def);
+      if (requirement.kind === 'runs') {
+        if (savedState.progress.playedRuns < requirement.required) {
+          if (showMessage) showToast('角色尚未解锁', `还需正式游玩 ${requirement.required - requirement.current} 局`, 'pink');
+          return false;
+        }
+      } else if (requirement.kind === 'coins') {
+        if (savedState.stats.totalCoins < requirement.cost) {
+          if (showMessage) showToast('金币不足', `还需要 ${requirement.cost - savedState.stats.totalCoins} 累计金币`, 'pink');
+          return false;
+        }
+        savedState.stats.totalCoins -= requirement.cost;
+        saveStats();
+      }
+      savedState.characters.unlocked.push(def.id);
+      saveCharacters();
+      updateTitleStats();
+      if (showMessage) showToast('角色已解锁', `${def.name} 现在可以选择`, 'gold');
+      return true;
+    }
+
+    function syncAutomaticCharacterUnlocks() {
+      if (savedState.progress.playedRuns >= BARBARIAN_RUNS_REQUIRED && !isCharacterUnlocked('barbarian')) {
+        savedState.characters.unlocked.push('barbarian');
+        saveCharacters();
+        showToast('角色已解锁', '蛮人完成历练，现在可以选择', 'gold');
+      }
+    }
+
+    function recordPlayedRun() {
+      savedState.progress.playedRuns += 1;
+      syncAutomaticCharacterUnlocks();
+      saveProgress();
+    }
+
+    function markDifficultyCompleted(id) {
+      if (!savedState.progress.clearedDifficulties.includes(id)) {
+        savedState.progress.clearedDifficulties.push(id);
+      }
+      const index = DIFFICULTY_DEFS.findIndex((def) => def.id === id);
+      const next = DIFFICULTY_DEFS[index + 1];
+      if (next && !savedState.progress.unlockedDifficulties.includes(next.id)) {
+        savedState.progress.unlockedDifficulties.push(next.id);
+        showToast('新难度已解锁', `${next.name} 现在可以选择`, 'gold');
+      }
+      saveProgress();
     }
 
     function centerX(z) {
@@ -2094,7 +2224,8 @@
       enemySide: 1,
       iframeTimer: 0,
       starRewardSettled: false,
-      competitiveStarReward: 0
+      competitiveStarReward: 0,
+      playedRunCounted: false
     };
 
     const run = {
@@ -2108,6 +2239,8 @@
       active: false,
       settled: false,
       finishing: false,
+      gameOver: false,
+      deathSettled: false,
       checkpointIndex: 0,
       deaths: 0,
       destroyed: 0,
@@ -2170,6 +2303,8 @@
         hearts: 3,
         upgradeLevel: 0,
         forwardSpeed: 0,
+        edgeGraceTime: 0,
+        edgeSlowMultiplier: 1,
         pickupLog: []
       };
     }
@@ -3156,6 +3291,110 @@
       updatePlayerLabels();
     }
 
+    function ensureShieldVisual(model) {
+      if (!model || !model.visual) return null;
+      if (model.shieldOrbit) return model.shieldOrbit;
+      const group = new THREE.Group();
+      group.name = 'shieldOrbit';
+      const shieldGeometry = cachedGeometry('limitedShield', () => new THREE.TorusGeometry(0.43, 0.09, 6, 16));
+      for (let i = 0; i < 3; i += 1) {
+        const shield = new THREE.Mesh(
+          shieldGeometry,
+          new THREE.MeshBasicMaterial({ color: 0xffe6a6, transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending })
+        );
+        shield.name = `shield${i}`;
+        shield.position.set(Math.cos(i / 3 * Math.PI * 2) * 1.35, 1.35, Math.sin(i / 3 * Math.PI * 2) * 1.35);
+        shield.rotation.y = i / 3 * Math.PI * 2;
+        shield.scale.set(0.78, 1.2, 0.78);
+        group.add(shield);
+      }
+      group.visible = false;
+      model.visual.add(group);
+      model.shieldOrbit = group;
+      return group;
+    }
+
+    function hideShieldVisual(model) {
+      if (model && model.shieldOrbit) model.shieldOrbit.visible = false;
+    }
+
+    function updateShieldVisual(p, model, dt) {
+      const shield = hasEffect(p, 'shield');
+      if (!shield || game.phase !== 'running' || game.paused || p.recoveryTime > 0 || p.sheepTime > 0) {
+        hideShieldVisual(model);
+        return;
+      }
+      const orbit = ensureShieldVisual(model);
+      if (!orbit) return;
+      orbit.visible = true;
+      orbit.rotation.y += dt * 2.8;
+      orbit.rotation.z += dt * 0.8;
+      const charges = Math.max(1, p.effects.shield.charges || 1);
+      orbit.children.forEach((part, index) => {
+        part.material.opacity = index < charges ? 0.95 : 0.25;
+        part.scale.setScalar(index < charges ? 1 : 0.72);
+      });
+    }
+
+    function restoreInvincibleMaterials(model) {
+      if (!model) return;
+      const root = model.gltfRoot || model.visual;
+      if (!root) return;
+      root.traverse((object) => {
+        if (!object.isMesh || object.userData.isOutline) return;
+        const materials = Array.isArray(object.material) ? object.material : [object.material];
+        materials.forEach((material) => {
+          const original = material && material.userData && material.userData.dreamrunOriginal;
+          if (!original) return;
+          if (material.color && original.color) material.color.copy(original.color);
+          if (material.emissive && original.emissive) material.emissive.copy(original.emissive);
+          if (typeof material.emissiveIntensity === 'number') material.emissiveIntensity = original.emissiveIntensity;
+        });
+      });
+      model.invincibleMaterialsActive = false;
+    }
+
+    function updateInvincibleMaterials(p, model) {
+      const invincible = hasEffect(p, 'invincible');
+      if (!invincible || game.phase !== 'running' || game.paused || p.recoveryTime > 0 || p.sheepTime > 0) {
+        if (model.invincibleMaterialsActive) restoreInvincibleMaterials(model);
+        return;
+      }
+      const root = model.gltfRoot || model.visual;
+      if (!root) return;
+      const gold = new THREE.Color(0xffd166);
+      const pulse = 0.72 + Math.sin(game.elapsed * 9) * 0.22;
+      root.traverse((object) => {
+        if (!object.isMesh || object.userData.isOutline) return;
+        const sourceMaterials = Array.isArray(object.material) ? object.material : [object.material];
+        const materials = sourceMaterials.map((material) => {
+          if (!material) return;
+          let target = material;
+          if (!target.userData.dreamrunOriginal) {
+            target = target.clone();
+            target.userData.dreamrunOriginal = {
+              color: target.color ? target.color.clone() : null,
+              emissive: target.emissive ? target.emissive.clone() : null,
+              emissiveIntensity: typeof target.emissiveIntensity === 'number' ? target.emissiveIntensity : null
+            };
+          }
+          if (target.color) target.color.lerp(gold, 0.42);
+          if (target.emissive) {
+            target.emissive.set(0xffb300);
+            target.emissiveIntensity = pulse;
+          }
+          return target;
+        });
+        object.material = Array.isArray(object.material) ? materials : materials[0];
+      });
+      model.invincibleMaterialsActive = true;
+    }
+
+    function updateLimitedStatusVisuals(p, model, dt) {
+      updateInvincibleMaterials(p, model);
+      updateShieldVisual(p, model, dt);
+    }
+
     function createSheepShell() {
       const group = new THREE.Group();
       group.name = 'sheepShell';
@@ -4041,12 +4280,25 @@
       return selectedCharacterId(playerId);
     }
 
+    function ensureSelectedCharactersUnlocked(pick) {
+      const ids = [pickCharacterId(0)];
+      if (pick.count > 1) ids.push(pickCharacterId(1));
+      for (let index = 0; index < ids.length; index += 1) {
+        const id = ids[index];
+        if (isCharacterUnlocked(id)) continue;
+        if (netIsHost() && pick.count > 1 && index === 1) continue;
+        if (!unlockCharacter(id)) return false;
+      }
+      return true;
+    }
+
     function confirmCharacterSelection() {
       if (netIsGuest()) {
         showToast('等待房主开始', '房主确认后自动进入倒计时', 'blue');
         return;
       }
       const pick = game.characterPick || { count: 1, menuOnly: false, selected: {} };
+      if (!ensureSelectedCharactersUnlocked(pick)) return;
       savedState.characters.selectedP1 = pickCharacterId(0);
       savedState.characters.selectedP2 = pickCharacterId(1);
       saveCharacters();
@@ -4077,13 +4329,17 @@
       const index = Math.max(0, CHARACTER_DEFS.findIndex((item) => item.id === current));
       const next = CHARACTER_DEFS[(index + direction + CHARACTER_DEFS.length) % CHARACTER_DEFS.length];
       pick.selected[pid] = next.id;
-      if (pid === 0) savedState.characters.selectedP1 = next.id;
-      else savedState.characters.selectedP2 = next.id;
+      if (isCharacterUnlocked(next.id)) {
+        if (pid === 0) savedState.characters.selectedP1 = next.id;
+        else savedState.characters.selectedP2 = next.id;
+      }
       players[pid].upgradeLevel = upgradeLevelFor(next.id);
-      saveCharacters();
+      if (isCharacterUnlocked(next.id)) saveCharacters();
       updateCharacterPreview(true);
       playTone({ frequency: direction > 0 ? 880 : 760, duration: 0.08, type: 'sine', volume: 0.11 });
-      if (netIsGuest() && pid === 1) netSend({ t: 'char', id: next.id, upgradeLevel: upgradeLevelFor(next.id) });
+      if (netIsGuest() && pid === 1 && isCharacterUnlocked(next.id)) {
+        netSend({ t: 'char', id: next.id, upgradeLevel: upgradeLevelFor(next.id) });
+      }
     }
 
     function updateCharacterPreview(immediate = false) {
@@ -4100,17 +4356,34 @@
         dom.skinName.textContent = pick.count > 1 ? `P1 ${def0.name}　·　P2 ${def1.name}` : def0.name;
       }
       if (dom.skinCondition) {
+        const locked0 = !isCharacterUnlocked(def0.id) && !(netIsHost() && pick.count > 1);
+        const locked1 = pick.count > 1 && !isCharacterUnlocked(def1.id) && !netIsHost();
+        const requirement0 = characterUnlockRequirement(def0).text;
+        const requirement1 = characterUnlockRequirement(def1).text;
         dom.skinCondition.textContent = pick.count > 1
-          ? `P1 ${skill0.name} Lv.${level0}（冷却 ${cooldown0.toFixed(1)}s）：${skillDescriptionFor(def0, game.mode)}　｜　P2 ${skill1.name} Lv.${level1}（冷却 ${cooldown1.toFixed(1)}s）：${skillDescriptionFor(def1, game.mode)}`
-          : `${skillDescriptionFor(def0, game.mode)} · 技能：${skill0.name} · 冷却 ${cooldown0.toFixed(1)}s · 强化 Lv.${level0}`;
+          ? `P1 ${skill0.name} Lv.${level0}${locked0 ? ` · 🔒 ${requirement0}` : ''}：${skillDescriptionFor(def0, game.mode)}　｜　P2 ${skill1.name} Lv.${level1}${locked1 ? ` · 🔒 ${requirement1}` : ''}：${skillDescriptionFor(def1, game.mode)}`
+          : `${locked0 ? `🔒 ${requirement0} · ` : ''}${skillDescriptionFor(def0, game.mode)} · 技能：${skill0.name} · 冷却 ${cooldown0.toFixed(1)}s · 强化 Lv.${level0}`;
       }
       if (dom.skinUnlockedCount) {
-        dom.skinUnlockedCount.textContent = pick.count > 1 ? 'P1：A / D　P2：← / →' : 'A / D 或 ← / →';
+        const unlockedCount = CHARACTER_DEFS.filter((def) => isCharacterUnlocked(def.id)).length;
+        dom.skinUnlockedCount.textContent = `已解锁 ${unlockedCount}/${CHARACTER_DEFS.length} · 金币 ${savedState.stats.totalCoins} · ${pick.count > 1 ? 'P1：A / D　P2：← / →' : 'A / D 或 ← / →'}`;
       }
       if (dom.skinUpgrade) dom.skinUpgrade.style.display = pick.menuOnly ? '' : 'none';
       const eyebrow = document.querySelector('#skinScreen .eyebrow');
       if (eyebrow) eyebrow.textContent = pick.count > 1 ? '双方同时选择角色' : '选择你的角色';
-      if (dom.skinConfirm) dom.skinConfirm.textContent = pick.menuOnly ? '确认' : (pick.count > 1 ? '双方出发' : '选好出发');
+      if (dom.skinConfirm) {
+        const lockedDefs = [def0];
+        if (pick.count > 1 && !netIsHost()) lockedDefs.push(def1);
+        const defForConfirm = lockedDefs.find((def) => !isCharacterUnlocked(def.id)) || def0;
+        const requirement = characterUnlockRequirement(defForConfirm);
+        if (!isCharacterUnlocked(defForConfirm.id)) {
+          if (requirement.kind === 'runs') dom.skinConfirm.textContent = `需游玩 ${requirement.current}/${requirement.required} 局`;
+          else if (savedState.stats.totalCoins >= requirement.cost) dom.skinConfirm.textContent = `解锁并选择 · ${requirement.cost} 金币`;
+          else dom.skinConfirm.textContent = `金币不足 · 需 ${requirement.cost}`;
+        } else {
+          dom.skinConfirm.textContent = pick.menuOnly ? '确认' : (pick.count > 1 ? '双方出发' : '选好出发');
+        }
+      }
       applyCharacterToPlayer(players[0], def0.id);
       players[0].upgradeLevel = upgradeLevelFor(def0.id);
       if (pick.count > 1) applyCharacterToPlayer(players[1], def1.id);
@@ -4477,6 +4750,7 @@
         spinRotationX: Number((p.spinRotationX || 0).toFixed(2)),
         squash: Number((p.squash || 0).toFixed(2)),
         forwardBonus: Number((p.forwardBonus || 0).toFixed(2)),
+        forwardSpeed: Number((p.forwardSpeed || 0).toFixed(2)),
         inkAmount: Number((p.inkAmount || 0).toFixed(2)),
         stars: p.stars,
         coins: p.coins,
@@ -4610,6 +4884,7 @@
       p.spinRotationX = ps.spinRotationX;
       p.squash = ps.squash;
       p.forwardBonus = ps.forwardBonus;
+      p.forwardSpeed = ps.forwardSpeed || 0;
       p.inkAmount = ps.inkAmount;
       p.stars = ps.stars;
       p.coins = ps.coins;
@@ -4724,6 +4999,7 @@
     function netGuestSyncCharacter() {
       if (!netIsGuest()) return false;
       const id = selectedCharacterId(1);
+      if (!isCharacterUnlocked(id)) return false;
       return netSend({ t: 'char', id, upgradeLevel: upgradeLevelFor(id) });
     }
 
@@ -4819,10 +5095,18 @@
       DIFFICULTY_DEFS.forEach((def, index) => {
         const card = document.createElement('button');
         card.type = 'button';
-        card.className = `difficulty-card${index === cursor ? ' active' : ''}`;
-        card.innerHTML = `<strong>${def.name}</strong><small>${def.desc}</small>`;
-        card.addEventListener('click', () => { game.difficultyCursor = index; renderDifficultyPanel(); });
-        card.addEventListener('dblclick', () => { game.difficultyCursor = index; confirmDifficulty(); });
+        const unlocked = isDifficultyUnlocked(def.id);
+        card.className = `difficulty-card${index === cursor ? ' active' : ''}${unlocked ? '' : ' locked'}`;
+        card.innerHTML = `<strong>${def.name}</strong><small>${def.desc}${unlocked ? '' : ' · 需通关前一难度解锁'}</small>`;
+        card.addEventListener('click', () => {
+          game.difficultyCursor = index;
+          if (!unlocked) showToast('难度尚未解锁', '请先通关前一档难度', 'pink');
+          renderDifficultyPanel();
+        });
+        card.addEventListener('dblclick', () => {
+          game.difficultyCursor = index;
+          if (unlocked) confirmDifficulty();
+        });
         dom.difficultyGrid.appendChild(card);
       });
     }
@@ -4835,6 +5119,10 @@
 
     function confirmDifficulty() {
       const def = DIFFICULTY_DEFS[clamp(game.difficultyCursor || 0, 0, DIFFICULTY_DEFS.length - 1)];
+      if (!isDifficultyUnlocked(def.id)) {
+        showToast('难度尚未解锁', '请先通关前一档难度', 'pink');
+        return;
+      }
       game.difficulty = def.id;
       savedState.settings.difficulty = def.id;
       saveSettings();
@@ -5045,6 +5333,8 @@
       p.sheepTotal = 0;
       p.questionHintAt = 0;
       p.forwardSpeed = 0;
+      p.edgeGraceTime = 0;
+      p.edgeSlowMultiplier = 1;
       p.upgradeLevel = 0;
       if (p.model) {
         p.model.root.visible = true;
@@ -5256,33 +5546,41 @@
       player.forwardBonus = clamp(player.forwardBonus - 3, -12, 12);
       spawnBurst(new THREE.Vector3(player.x, player.y + 1.6, player.z), 0xff8fc7, 14, 6.0, 0.7);
       playTone({ frequency: 300, slideTo: 140, duration: 0.2, type: 'square', volume: 0.1 });
-      if (player.hearts <= 0) dieAndRespawn();
+      if (player.hearts <= 0) failSingleRun();
       else showNotice(player.id, '受到伤害！', `剩余 ${player.hearts} 颗心`, 'pink');
       updateHud();
       return true;
     }
 
-    function dieAndRespawn() {
+    function settleSingleDeath() {
+      if (run.deathSettled) return;
+      run.deathSettled = true;
+      savedState.stats.totalCoins += run.coins;
+      savedState.stats.starCoins += run.stars;
+      recordPlayedRun();
+      saveStats();
+      updateTitleStats();
+    }
+
+    function failSingleRun() {
+      if (game.mode !== 'single' || run.gameOver) return;
+      run.gameOver = true;
+      run.active = false;
+      run.finishing = true;
       run.deaths += 1;
-      const index = nearestCheckpointIndex(player.z);
-      run.checkpointIndex = Math.max(run.checkpointIndex || 0, index);
-      const z = LEVEL.checkpoints[index];
-      player.x = centerX(z);
-      player.y = pathY(z) + 0.06;
-      player.z = z + 1.2;
       player.vx = 0;
       player.vy = 0;
       player.forwardBonus = 0;
-      player.grounded = true;
-      player.jumpsUsed = 0;
-      player.hearts = difficultyDef(game.difficulty).hearts;
-      game.iframeTimer = 1.5;
+      player.balloonTime = 0;
+      player.spinTime = 0;
+      if (player.model) player.model.balloonShell.visible = false;
+      clearProjectiles();
+      clearPowerProjectiles();
       clearEnemyBullets();
       deactivateAllEnemies();
-      game.enemySpawnTimer = 3;
-      spawnBurst(new THREE.Vector3(player.x, player.y + 1.5, player.z), 0xffffff, 22, 7.0, 1.0);
-      playSfx('checkpoint');
-      showNotice(0, '阵亡！', '从最近检查点复活，收集物都还在。', 'pink');
+      settleSingleDeath();
+      showResult();
+      playSfx('error');
       updateHud();
     }
 
@@ -5370,6 +5668,8 @@
       run.active = false;
       run.finishing = false;
       run.settled = false;
+      run.gameOver = false;
+      run.deathSettled = false;
       run.checkpointIndex = 0;
       run.deaths = 0;
       run.destroyed = 0;
@@ -5386,6 +5686,7 @@
       game.finishOrder = [];
       game.starRewardSettled = false;
       game.competitiveStarReward = 0;
+      game.playedRunCounted = false;
       clearNotices();
       game.historyTimer = 0;
       game.splitCooldown = 0;
@@ -5460,6 +5761,8 @@
     function startRunning() {
       run.active = true;
       game.elapsed = 0;
+      world.lastCameraPosition = null;
+      world.lastCameraLook = null;
       setPhase('running');
       dom.hint.classList.remove('fade');
       playSfx('checkpoint');
@@ -5984,8 +6287,8 @@
       group.userData = {
         kind: 'sword', skill: 'sword', visualOnly: false,
         ownerId: p.id, targetId: p.id === 0 ? 1 : 0,
-        speed: skill.speed, range: skill.range, radius: skill.radius,
-        dirX: 0, dirZ: 1, traveled: 0, color: skill.color,
+        speed: skill.speed, range: skill.range, radius: skill.radius, duration: skill.duration,
+        dirX: 0, dirZ: 1, traveled: 0, age: 0, color: skill.color,
         endBurstRadius: skill.endBurstRadius || 0
       };
       scene.add(group);
@@ -6341,9 +6644,10 @@
           projectile.position.x += data.dirX * data.speed * dt;
           projectile.position.z += data.dirZ * data.speed * dt;
           projectile.rotation.y += dt * 8;
+          data.age = (data.age || 0) + dt;
           data.traveled += data.speed * dt;
           if (game.mode === 'single') destroyBySwordAt(projectile.position, data.radius);
-          if (data.traveled > data.range) {
+          if (data.age >= (data.duration || data.range / data.speed)) {
             if (game.mode === 'single' && data.endBurstRadius > 0) {
               const destroyed = destroyBySwordAt(projectile.position, data.endBurstRadius);
               spawnBurst(projectile.position.clone(), 0xfff0a6, destroyed ? 28 : 18, 8.5, 1.0);
@@ -6801,6 +7105,13 @@
         return;
       }
       run.fell = true;
+      if (game.difficulty !== 'nap') {
+        player.hearts = Math.max(0, (player.hearts || 0) - 1);
+        if (player.hearts <= 0) {
+          failSingleRun();
+          return;
+        }
+      }
       p.recoveryCheckpoint = nearestCheckpointIndex(p.z);
       run.checkpointIndex = Math.max(run.checkpointIndex || 0, p.recoveryCheckpoint);
       const checkpointZ = LEVEL.checkpoints[p.recoveryCheckpoint];
@@ -6821,7 +7132,7 @@
       dom.recovery.classList.add('visible');
       spawnBurst(new THREE.Vector3(p.x, p.y + 1.2, p.z), 0xffffff, 16, 5.8, 1.0);
       playSfx('checkpoint');
-      showNotice(p.id, '云朵接住你啦', '从最近的恢复点继续，收集物都还在。', 'pink');
+      showNotice(p.id, game.difficulty === 'nap' ? '云朵接住你啦' : '掉落受伤！', game.difficulty === 'nap' ? '从最近的恢复点继续，收集物都还在。' : `剩余 ${player.hearts} 颗心，已回检查点`, 'pink');
     }
 
     function branchRunwayFor(p) {
@@ -6874,6 +7185,7 @@
 
       const controls = inputs[p.id] || inputs[0];
       p.bumpTime = Math.max(0, p.bumpTime - dt);
+      p.edgeGraceTime = Math.max(0, p.edgeGraceTime || 0);
       let inputX = p.bumpTime > 0 || p.balloonTime > 0 ? 0 : visualInputAxis(controls);
       if (p.bumpTime <= 0) {
         if (hasEffect(p, 'reverse')) inputX *= -1;
@@ -6907,7 +7219,8 @@
           showNotice(0, '赛程已过半', '后半程速度再提升 20%！', 'gold');
         }
       }
-      const speed = baseSpeed * speedMultiplier(p);
+      const edgeSpeedMultiplier = p.edgeGraceTime > 0 ? 0.92 : 1;
+      const speed = baseSpeed * speedMultiplier(p) * edgeSpeedMultiplier;
       p.forwardBonus = lerp(p.forwardBonus, 0, 1 - Math.exp(-2.25 * dt));
       p.forwardSpeed = Math.max(0, speed + p.forwardBonus);
       p.z += p.forwardSpeed * dt;
@@ -6917,6 +7230,7 @@
       if (cloudTalent) controlSpeed *= 1.2;
       if (hasEffect(p, 'glide')) controlSpeed *= 1.25;
       if (hasEffect(p, 'roll')) controlSpeed *= 0.82;
+      if (p.edgeGraceTime > 0) controlSpeed *= 0.85;
       const targetVelocity = inputX * controlSpeed;
       const turning = inputX !== 0 && p.vx * inputX < 0;
       let acceleration;
@@ -6942,12 +7256,29 @@
 
       if (p.grounded) {
         const surface = surfaceYAt(p.x, p.z, p.y + 0.7);
-        if (surface !== null && Math.abs(surface - p.y) <= 1.45) p.y = surface;
-        else {
-          p.grounded = false;
-          p.vy = Math.min(0, p.vy);
-          p.coyote = 0.14;
+        if (surface !== null && Math.abs(surface - p.y) <= 1.45) {
+          p.y = surface;
+          p.edgeGraceTime = 0;
+          p.edgeSlowMultiplier = 1;
+        } else if (p.edgeGraceTime > 0) {
+          p.edgeGraceTime = Math.max(0, p.edgeGraceTime - dt);
+          p.edgeSlowMultiplier = 0.92;
+          p.vy = 0;
+          if (p.edgeGraceTime <= 0) {
+            p.edgeSlowMultiplier = 1;
+            p.grounded = false;
+            p.vy = 0;
+            p.coyote = 0.14;
+          }
+        } else {
+          p.edgeGraceTime = 0.1;
+          p.edgeSlowMultiplier = 0.92;
+          p.vy = 0;
+          p.coyote = 0.1;
         }
+      } else {
+        p.edgeGraceTime = 0;
+        p.edgeSlowMultiplier = 1;
       }
 
       if (!p.grounded) {
@@ -7218,6 +7549,8 @@
       savedState.stats.bestStars = Math.max(savedState.stats.bestStars, run.stars);
       savedState.stats.lastRating = run.rating;
       saveStats();
+      recordPlayedRun();
+      markDifficultyCompleted(game.difficulty);
       let points = run.rating === 'A' ? 2 : 1;
       if (run.missionId === 'mushrooms' && run.missionComplete) points += 1;
       awardTalentPoints(points, `单人 ${run.rating} 级评价`);
@@ -7241,6 +7574,10 @@
       }
       game.starRewardSettled = true;
       game.competitiveStarReward = amount;
+      if (!game.playedRunCounted) {
+        game.playedRunCounted = true;
+        recordPlayedRun();
+      }
       if (amount > 0) {
         savedState.stats.starCoins += amount;
         saveStats();
@@ -7271,6 +7608,19 @@
     function showResult() {
       if (game.phase === 'result') return;
       setPhase('result');
+      if (game.mode === 'single' && run.gameOver) {
+        dom.resultEyebrow.textContent = '挑战失败';
+        dom.ratingBadge.textContent = '×';
+        dom.resultMessage.textContent = '心已耗尽，梦途暂时中断。';
+        dom.resultTask.textContent = '本局已结算当前获得的金币和星币。';
+        dom.resultStars.textContent = String(run.stars);
+        dom.resultCoins.textContent = String(run.coins);
+        dom.resultMushrooms.textContent = String(run.mushrooms);
+        dom.resultGrid2.innerHTML = '';
+        dom.unlockMessage.textContent = `难度 ${difficultyDef(game.difficulty).name} · 正式游玩 ${savedState.progress.playedRuns} 局 · 累计金币 ${savedState.stats.totalCoins} · 星币余额 ${savedState.stats.starCoins}。`;
+        dom.changeHat.disabled = false;
+        return;
+      }
       if (game.mode === 'duo') {
         const winner = players[game.winner || 0];
         const loser = players[winner.id === 0 ? 1 : 0];
@@ -7356,6 +7706,7 @@
     function animateModel(p, dt) {
       const model = p.model;
       if (!model) return;
+      updateLimitedStatusVisuals(p, model, dt);
       const duoCharacterPreview = game.phase === 'skins' && game.characterPick && game.characterPick.count > 1;
       const previewing = (game.phase === 'title' || game.phase === 'skins' || game.phase === 'upgrade') && (p.id === 0 || duoCharacterPreview);
       if (previewing) {
@@ -7491,6 +7842,8 @@
         if (world.cameraLookBase) world.cameraLookBase.copy(world.cameraLook || camera.position);
         if (world.cameraLookBase2) world.cameraLookBase2.copy(world.cameraLook || camera.position);
       }
+      if (world.lastCameraPosition) world.lastCameraPosition = null;
+      if (world.lastCameraLook) world.lastCameraLook = null;
       game.splitCooldown = 0.8;
       if (dom.splitDivider) dom.splitDivider.classList.toggle('visible', next);
       updateCameraAspects();
@@ -7513,19 +7866,25 @@
 
     function updateFollowCamera(cam, p, desired, look, dt, fov, base, lookBase) {
       if (!cam || !desired || !look) return;
+      const speedFactor = cameraSpeedFactor(p);
+      const groundY = surfaceYAt(p.x, p.z) ?? pathY(p.z);
+      const anchorY = groundY * 0.72 + p.y * 0.28;
+      const distance = 13.5 + speedFactor * 5;
+      const lookAhead = 9.5 + speedFactor * 14.5;
+      const boostPov = hasEffect(p, 'speed') || hasEffect(p, 'dash') ? 3.5 : 0;
       desired.set(
         p.x * 0.52 + centerX(p.z) * 0.48,
-        p.y + 7.3 + clamp(p.vy * 0.035, -0.2, 0.2),
-        p.z - 13.5
+        anchorY + 7.3 + speedFactor * 1.9,
+        p.z - distance
       );
-      look.set(p.x * 0.6 + centerX(p.z) * 0.4, p.y + 2.3, p.z + 9.5);
+      look.set(p.x * 0.6 + centerX(p.z) * 0.4, anchorY + 2.3, p.z + lookAhead + Math.max(0, p.forwardSpeed || 0) * 0.3);
       const factor = 1 - Math.exp(-dt * 5.5);
       if (!base) return;
-      base.lerp(desired, factor);
+      moveCameraTowards(base, desired, factor, dt);
       if (!lookBase) return;
-      lookBase.lerp(look, 1 - Math.exp(-dt * 4.5));
+      moveCameraTowards(lookBase, look, 1 - Math.exp(-dt * 4.5), dt, 220);
       cam.position.copy(base);
-      cam.fov = lerp(cam.fov, fov, 1 - Math.exp(-dt * 4));
+      cam.fov = lerp(cam.fov, fov + speedFactor * 8 + boostPov, 1 - Math.exp(-dt * 4));
       cam.lookAt(lookBase);
       cam.updateProjectionMatrix();
     }
@@ -7543,6 +7902,22 @@
       world.cameraLookDelta = world.cameraLookBase ? world.cameraLookBase.distanceTo(world.lastCameraLook) : 0;
       world.lastCameraPosition.copy(camera.position);
       if (world.cameraLookBase) world.lastCameraLook.copy(world.cameraLookBase);
+    }
+
+    function cameraSpeedFactor(p) {
+      const speed = Math.max(0, p && p.forwardSpeed ? p.forwardSpeed : 0);
+      return clamp((speed - 40) / 76, 0, 1);
+    }
+
+    function moveCameraTowards(base, target, factor, dt, maxSpeed = 42) {
+      if (!base || !target) return;
+      const dx = target.x - base.x;
+      const dy = target.y - base.y;
+      const dz = target.z - base.z;
+      const distance = Math.hypot(dx, dy, dz);
+      const maxStep = Math.max(0.01, maxSpeed * dt);
+      const amount = Math.min(factor, distance > 0.0001 ? maxStep / distance : factor);
+      base.lerp(target, amount);
     }
 
     function updateCamera(dt) {
@@ -7579,10 +7954,10 @@
           world.cameraLook.set(centerX(z), pathY(z) + 2.2, z + 0.2);
           camera.fov = 50;
         }
-        world.cameraBase.lerp(world.cameraDesired, factor);
+        moveCameraTowards(world.cameraBase, world.cameraDesired, factor, dt);
         camera.position.copy(world.cameraBase);
         game.shake = 0;
-        world.cameraLookBase.lerp(world.cameraLook, 1 - Math.exp(-dt * 4.5));
+        moveCameraTowards(world.cameraLookBase, world.cameraLook, 1 - Math.exp(-dt * 4.5), dt, 220);
         camera.lookAt(world.cameraLookBase);
         camera.updateProjectionMatrix();
         recordCameraMotion();
@@ -7598,22 +7973,34 @@
       if (game.mode === 'duo') {
         const a = players[0];
         const b = players[1];
+        const speedFactor = Math.max(cameraSpeedFactor(a), cameraSpeedFactor(b));
+        const boostPov = hasEffect(a, 'speed') || hasEffect(a, 'dash') || hasEffect(b, 'speed') || hasEffect(b, 'dash') ? 3.2 : 0;
         const midX = (a.x + b.x) * 0.5;
-        const midY = (a.y + b.y) * 0.5;
         const midZ = (a.z + b.z) * 0.5;
+        const groundA = surfaceYAt(a.x, a.z) ?? pathY(a.z);
+        const groundB = surfaceYAt(b.x, b.z) ?? pathY(b.z);
+        const anchorA = groundA * 0.7 + a.y * 0.3;
+        const anchorB = groundB * 0.7 + b.y * 0.3;
+        const anchorY = (anchorA + anchorB) * 0.5;
         const separation = Math.abs(a.z - b.z);
-        const distance = 14.5 + clamp(separation * 0.045, 0, 5.5);
-        world.cameraDesired.set(midX, midY + 7.6 + clamp(separation * 0.01, 0, 2), midZ - distance);
-        world.cameraLook.set(midX, midY + 2.4, midZ + 10 + separation * 0.02);
-        camera.fov = lerp(camera.fov, 60 + clamp(separation * 0.025, 0, 7), factor);
+        const distance = 14.5 + clamp(separation * 0.045, 0, 5.5) + speedFactor * 4.2;
+        world.cameraDesired.set(midX, anchorY + 7.6 + clamp(separation * 0.01, 0, 2) + speedFactor * 1.8, midZ - distance);
+        world.cameraLook.set(midX, anchorY + 2.4, midZ + 10 + separation * 0.02 + speedFactor * 11 + Math.max(a.forwardSpeed || 0, b.forwardSpeed || 0) * 0.25);
+        camera.fov = lerp(camera.fov, 60 + clamp(separation * 0.025, 0, 7) + speedFactor * 8 + boostPov, factor);
       } else {
-        world.cameraDesired.set(player.x * 0.52 + centerX(player.z) * 0.48, player.y + 7.3 + clamp(player.vy * 0.035, -0.2, 0.2), player.z - 13.5);
-        world.cameraLook.set(player.x * 0.6 + centerX(player.z) * 0.4, player.y + 2.3, player.z + 9.5);
-        camera.fov = lerp(camera.fov, 58 + clamp((player.z / LEVEL.endZ) * 4, 0, 4), factor);
+        const speedFactor = cameraSpeedFactor(player);
+        const boostPov = hasEffect(player, 'speed') || hasEffect(player, 'dash') ? 3.5 : 0;
+        const groundY = surfaceYAt(player.x, player.z) ?? pathY(player.z);
+        const anchorY = groundY * 0.72 + player.y * 0.28;
+        const distance = 13.5 + speedFactor * 5;
+        const lookAhead = 9.5 + speedFactor * 14.5;
+        world.cameraDesired.set(player.x * 0.52 + centerX(player.z) * 0.48, anchorY + 7.3 + speedFactor * 1.9, player.z - distance);
+        world.cameraLook.set(player.x * 0.6 + centerX(player.z) * 0.4, anchorY + 2.3, player.z + lookAhead + Math.max(0, player.forwardSpeed || 0) * 0.3);
+        camera.fov = lerp(camera.fov, 58 + clamp((player.z / LEVEL.endZ) * 4, 0, 4) + speedFactor * 10 + boostPov, factor);
       }
-      world.cameraBase.lerp(world.cameraDesired, factor);
+      moveCameraTowards(world.cameraBase, world.cameraDesired, factor, dt);
       camera.position.copy(world.cameraBase);
-      world.cameraLookBase.lerp(world.cameraLook, 1 - Math.exp(-dt * 4.5));
+      moveCameraTowards(world.cameraLookBase, world.cameraLook, 1 - Math.exp(-dt * 4.5), dt, 220);
       camera.lookAt(world.cameraLookBase);
       game.shake = 0;
       camera.updateProjectionMatrix();
@@ -7803,6 +8190,9 @@
               bumpTime: p.bumpTime, skillCooldown: p.skillCooldown, chargeTime: p.chargeTime,
               chargeKind: p.chargeKind, sheepTime: p.sheepTime, forwardBonus: p.forwardBonus,
               forwardSpeed: p.forwardSpeed, upgradeLevel: p.upgradeLevel || 0,
+              edgeGraceTime: p.edgeGraceTime || 0,
+              invincibleGold: Boolean(p.model && p.model.invincibleMaterialsActive),
+              shieldVisual: Boolean(p.model && p.model.shieldOrbit && p.model.shieldOrbit.visible),
               skillCooldownTotal: effectiveSkillFor(p).cooldown,
               sizeScale: p.sizeScale, pickupScale: clamp(p.sizeScale, 0.5, 8),
               weapons: visibleWeaponNames(p),
@@ -7813,7 +8203,11 @@
               visualHidden: Boolean(p.model && p.model.visual && !p.model.visual.visible),
               modelKind: p.model && p.model.gltfRoot ? 'gltf' : 'procedural'
             })),
-            run: { stars: run.stars, coins: run.coins, mushrooms: run.mushrooms, fell: run.fell },
+            run: { stars: run.stars, coins: run.coins, mushrooms: run.mushrooms, fell: run.fell, gameOver: run.gameOver, deathSettled: run.deathSettled },
+            gameOver: run.gameOver,
+            progress: clone(savedState.progress),
+            characterUnlocks: clone(savedState.characters.unlocked),
+            edgeGraceTime: player.edgeGraceTime || 0,
             totals: clone(savedState.stats),
             skins: clone(savedState.skins),
             characters: clone(savedState.characters),
@@ -7829,7 +8223,9 @@
             cameraLookTarget: world.cameraLookBase ? { x: world.cameraLookBase.x, y: world.cameraLookBase.y, z: world.cameraLookBase.z } : null,
             cameraDelta: world.cameraDelta || 0,
             cameraLookDelta: world.cameraLookDelta || 0,
+            cameraFov: camera ? camera.fov : null,
             splitCooldown: game.splitCooldown || 0,
+            speedPov: cameraSpeedFactor(player),
             questionProjectiles: world.projectiles.length,
             questionProjectileInfo: world.projectiles.map((projectile) => ({
               ownerId: projectile.userData.ownerId,
@@ -7846,7 +8242,10 @@
               skill: fx.userData.skill,
               x: fx.position.x,
               z: fx.position.z,
-              dirZ: fx.userData.dirZ
+              dirZ: fx.userData.dirZ,
+              age: fx.userData.age || 0,
+              duration: fx.userData.duration || 0,
+              traveled: fx.userData.traveled || 0
             })),
             talents: clone(savedState.talents),
             skillConfig: clone(SKILL_CONFIG),
@@ -7855,6 +8254,25 @@
           };
         },
         setMission(id) { return setMission(id, true); },
+        getProgress() { return clone(savedState.progress); },
+        setDifficultyUnlock(id, unlocked = true) {
+          if (!DIFFICULTY_DEFS.some((def) => def.id === id)) return false;
+          const list = savedState.progress.unlockedDifficulties;
+          if (unlocked && !list.includes(id)) list.push(id);
+          if (!unlocked) savedState.progress.unlockedDifficulties = list.filter((item) => item !== id && item !== 'nap');
+          saveProgress();
+          renderDifficultyPanel();
+          return clone(savedState.progress);
+        },
+        unlockCharacter(id) {
+          if (!CHARACTER_DEFS.some((def) => def.id === id)) return false;
+          return unlockCharacter(id);
+        },
+        addPlayedRun(amount = 1) {
+          const value = Math.max(1, Math.floor(Number(amount) || 1));
+          for (let i = 0; i < value; i += 1) recordPlayedRun();
+          return savedState.progress.playedRuns;
+        },
         setDifficulty(id) {
           const def = DIFFICULTY_DEFS.find((item) => item.id === id);
           if (!def) return false;
@@ -8146,7 +8564,8 @@
           savedState.settings = clone(DEFAULT_SETTINGS);
           savedState.talents = clone(DEFAULT_TALENTS);
           savedState.upgrades = clone(DEFAULT_UPGRADES);
-          saveStats(); saveSkins(); saveCharacters(); saveSettings(); saveTalents(); saveUpgrades();
+          savedState.progress = clone(DEFAULT_PROGRESS);
+          saveStats(); saveSkins(); saveCharacters(); saveSettings(); saveTalents(); saveUpgrades(); saveProgress();
           updateTitleStats();
           updateAudioButton();
           refreshPlayerCharacters();
@@ -8165,9 +8584,15 @@
             ['death caps rating at B', ratingFor(true, LEVEL.aStarTarget, 1) === 'B'],
             ['four difficulties', DIFFICULTY_DEFS.length === 4 && DIFFICULTY_DEFS[0].id === 'nap' && DIFFICULTY_DEFS[3].id === 'nightmare'],
             ['doubled difficulty values', DIFFICULTY_DEFS.every((def, index) => def.speed === [1.7, 2, 2.4, 2.7][index] && def.enemyMax === [2, 4, 8, 12][index] && def.bullets === [2, 6, 12, 18][index])],
-            ['difficulty fallback', difficultyDef('invalid').id === 'dream'],
-            ['settings difficulty fallback', normalizeSettings({ difficulty: 'invalid' }).difficulty === 'dream'],
+            ['difficulty fallback', difficultyDef('invalid').id === 'nap'],
+            ['settings difficulty fallback', normalizeSettings({ difficulty: 'invalid' }).difficulty === 'nap'],
+            ['character unlock costs', CHARACTER_UNLOCK_COSTS.rogue === 300 && CHARACTER_UNLOCK_COSTS.knight === 600],
+            ['barbarian unlock requirement', BARBARIAN_RUNS_REQUIRED === 3],
+            ['difficulty progression normalization', normalizeProgress(null, { difficulty: 'dream' }, 0).unlockedDifficulties.join(',') === 'nap,dream'],
+            ['legacy run migration', normalizeProgress(null, { difficulty: 'nap' }, 5).playedRuns === 5],
+            ['new saves unlock mage only', normalizeCharacters(DEFAULT_CHARACTERS, { playedRuns: 0 }).unlocked.join(',') === 'mage'],
             ['single knight swordwave', SKILL_BY_MODE.single.knight === 'swordwave'],
+            ['swordwave x3 speed', CHARACTER_SKILLS.swordwave.speed === 126 && CHARACTER_SKILLS.swordwave.duration === 2.86 && CHARACTER_SKILLS.swordwave.radius === 6.4],
             ['single mage guard', SKILL_BY_MODE.single.mage === 'guard'],
             ['duo mage keeps sheep', SKILL_BY_MODE.duo.mage === 'orb'],
             ['checkpoint at 700', nearestCheckpointIndex(700) === 1],
@@ -8209,7 +8634,7 @@
             ['star coin migration', normalizeStats({ totalStars: 88 }).starCoins === 88],
             ['upgrade normalization', normalizeUpgrades({ knight: 9, mage: -2 }).knight === 3 && normalizeUpgrades({ knight: 9, mage: -2 }).mage === 0],
             ['talent normalization', normalizeTalents({ points: -2, unlocked: ['a1'] }).points === 0],
-            ['character normalization', normalizeCharacters({ selectedP1: 'unknown', selectedP2: 'mage' }).selectedP1 === 'knight'],
+            ['character normalization', normalizeCharacters({ selectedP1: 'unknown', selectedP2: 'mage' }).selectedP1 === 'mage'],
             ['lan off by default', NET.role === 'off'],
             ['lan parses room code', netParseTarget('A7K2').room === 'A7K2'],
             ['lan parses url', netParseTarget('http://192.168.1.5:8000/?room=ab12').host === '192.168.1.5:8000'],
