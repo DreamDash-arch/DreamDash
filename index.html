@@ -7864,27 +7864,33 @@
       else if (game.splitScreen && dz < SPLIT_EXIT_Z && dx < SPLIT_EXIT_X) setSplitScreen(false);
     }
 
+    function pathForward(z) {
+      const dx = centerX(z + 2) - centerX(z - 2);
+      const length = Math.hypot(dx, 4) || 1;
+      return { x: dx / length, z: 4 / length };
+    }
+
     function updateFollowCamera(cam, p, desired, look, dt, fov, base, lookBase) {
       if (!cam || !desired || !look) return;
       const speedFactor = cameraSpeedFactor(p);
       const groundY = surfaceYAt(p.x, p.z) ?? pathY(p.z);
-      const anchorY = groundY * 0.72 + p.y * 0.28;
-      const distance = 13.5 + speedFactor * 5;
-      const lookAhead = 9.5 + speedFactor * 14.5;
+      const anchorY = groundY * 0.85 + p.y * 0.15;
+      const forward = pathForward(p.z);
+      const distance = 14.5;
+      const lookAhead = 10 + speedFactor * 4;
       const boostPov = hasEffect(p, 'speed') || hasEffect(p, 'dash') ? 3.5 : 0;
       desired.set(
-        p.x * 0.52 + centerX(p.z) * 0.48,
-        anchorY + 7.3 + speedFactor * 1.9,
-        p.z - distance
+        p.x - forward.x * distance,
+        anchorY + 7.5,
+        p.z - forward.z * distance
       );
-      look.set(p.x * 0.6 + centerX(p.z) * 0.4, anchorY + 2.3, p.z + lookAhead + Math.max(0, p.forwardSpeed || 0) * 0.3);
-      const factor = 1 - Math.exp(-dt * 5.5);
+      look.set(p.x + forward.x * lookAhead, anchorY + 2.3, p.z + forward.z * lookAhead);
       if (!base) return;
-      moveCameraTowards(base, desired, factor, dt);
+      base.copy(desired);
       if (!lookBase) return;
-      moveCameraTowards(lookBase, look, 1 - Math.exp(-dt * 4.5), dt, 220);
+      lookBase.copy(look);
       cam.position.copy(base);
-      cam.fov = lerp(cam.fov, fov + speedFactor * 8 + boostPov, 1 - Math.exp(-dt * 4));
+      cam.fov = lerp(cam.fov, fov + speedFactor * 12 + boostPov, 1 - Math.exp(-dt * 4));
       cam.lookAt(lookBase);
       cam.updateProjectionMatrix();
     }
@@ -7982,25 +7988,23 @@
         const anchorA = groundA * 0.7 + a.y * 0.3;
         const anchorB = groundB * 0.7 + b.y * 0.3;
         const anchorY = (anchorA + anchorB) * 0.5;
+        const forward = pathForward(midZ);
         const separation = Math.abs(a.z - b.z);
-        const distance = 14.5 + clamp(separation * 0.045, 0, 5.5) + speedFactor * 4.2;
-        world.cameraDesired.set(midX, anchorY + 7.6 + clamp(separation * 0.01, 0, 2) + speedFactor * 1.8, midZ - distance);
-        world.cameraLook.set(midX, anchorY + 2.4, midZ + 10 + separation * 0.02 + speedFactor * 11 + Math.max(a.forwardSpeed || 0, b.forwardSpeed || 0) * 0.25);
+        const distance = 15.5;
+        const lookAhead = 10 + speedFactor * 4;
+        world.cameraDesired.set(midX - forward.x * distance, anchorY + 7.8 + clamp(separation * 0.01, 0, 2), midZ - forward.z * distance);
+        world.cameraLook.set(midX + forward.x * lookAhead, anchorY + 2.4, midZ + forward.z * lookAhead);
+        world.cameraBase.copy(world.cameraDesired);
+        world.cameraLookBase.copy(world.cameraLook);
+        camera.position.copy(world.cameraBase);
         camera.fov = lerp(camera.fov, 60 + clamp(separation * 0.025, 0, 7) + speedFactor * 8 + boostPov, factor);
       } else {
-        const speedFactor = cameraSpeedFactor(player);
-        const boostPov = hasEffect(player, 'speed') || hasEffect(player, 'dash') ? 3.5 : 0;
-        const groundY = surfaceYAt(player.x, player.z) ?? pathY(player.z);
-        const anchorY = groundY * 0.72 + player.y * 0.28;
-        const distance = 13.5 + speedFactor * 5;
-        const lookAhead = 9.5 + speedFactor * 14.5;
-        world.cameraDesired.set(player.x * 0.52 + centerX(player.z) * 0.48, anchorY + 7.3 + speedFactor * 1.9, player.z - distance);
-        world.cameraLook.set(player.x * 0.6 + centerX(player.z) * 0.4, anchorY + 2.3, player.z + lookAhead + Math.max(0, player.forwardSpeed || 0) * 0.3);
-        camera.fov = lerp(camera.fov, 58 + clamp((player.z / LEVEL.endZ) * 4, 0, 4) + speedFactor * 10 + boostPov, factor);
+        updateFollowCamera(camera, player, world.cameraDesired, world.cameraLook, dt, 58, world.cameraBase, world.cameraLookBase);
+        game.shake = 0;
+        recordCameraMotion();
+        return;
       }
-      moveCameraTowards(world.cameraBase, world.cameraDesired, factor, dt);
       camera.position.copy(world.cameraBase);
-      moveCameraTowards(world.cameraLookBase, world.cameraLook, 1 - Math.exp(-dt * 4.5), dt, 220);
       camera.lookAt(world.cameraLookBase);
       game.shake = 0;
       camera.updateProjectionMatrix();
@@ -8221,6 +8225,9 @@
             net: { role: NET.role, room: NET.room, connected: NET.connected, peer: NET.peer, started: NET.started },
             cameraPosition: camera ? { x: camera.position.x, y: camera.position.y, z: camera.position.z } : null,
             cameraLookTarget: world.cameraLookBase ? { x: world.cameraLookBase.x, y: world.cameraLookBase.y, z: world.cameraLookBase.z } : null,
+            cameraPlayerOffset: camera ? { x: camera.position.x - player.x, y: camera.position.y - player.y, z: camera.position.z - player.z } : null,
+            cameraDistance: camera ? Math.hypot(camera.position.x - player.x, camera.position.z - player.z) : null,
+            cameraHeight: camera ? camera.position.y - player.y : null,
             cameraDelta: world.cameraDelta || 0,
             cameraLookDelta: world.cameraLookDelta || 0,
             cameraFov: camera ? camera.fov : null,
