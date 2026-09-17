@@ -841,17 +841,23 @@
       left: 18px;
       top: 74px;
       display: flex;
-      flex-direction: column;
+      flex-direction: row;
+      flex-wrap: wrap;
+      align-content: flex-start;
       gap: 5px;
-      width: 230px;
+      width: min(330px, 34vw);
+      max-height: 76px;
+      overflow: hidden;
     }
 
-    #effectsP2 { left: auto; right: 18px; align-items: flex-end; }
+    #effectsP2 { left: auto; right: 18px; justify-content: flex-end; }
+
+    #hud.single-mode #effectsP1 { top: 108px; }
 
     .skill-strips {
       position: absolute;
       left: 18px;
-      top: 148px;
+      top: 160px;
       display: flex;
       flex-direction: column;
       gap: 8px;
@@ -859,6 +865,7 @@
     }
 
     #skillP2 { left: auto; right: 18px; align-items: flex-end; }
+    #hud.single-mode #skillP1 { top: 192px; }
 
     .skill-wrap {
       width: 196px;
@@ -920,18 +927,29 @@
     .skill-extra.empty { opacity: .42; }
 
     .effect-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
       width: max-content;
-      padding: 4px 8px;
+      padding: 3px 6px;
       border: 2px solid rgba(53,43,77,.62);
       border-radius: 999px;
       color: #fff;
       background: #6f61a8;
-      font-size: 11px;
+      font-size: 10px;
+      line-height: 1.1;
       font-weight: 900;
+      white-space: nowrap;
     }
 
     .effect-chip.buff { background: #3d9f78; }
     .effect-chip.trap { background: #b35d75; }
+    .effect-chip.expiring { animation: effectPulse 480ms ease-in-out infinite alternate; }
+
+    @keyframes effectPulse {
+      from { filter: brightness(1); transform: scale(1); }
+      to { filter: brightness(1.45); transform: scale(1.06); }
+    }
 
     #inkOverlay {
       position: fixed;
@@ -1490,6 +1508,19 @@
     };
 
     const JUMP_VELOCITIES = { first: 13.4, second: 12.3, third: 11.5 };
+    const CONTROL_TUNING = {
+      groundSpeed: 24,
+      airSpeed: 18,
+      groundAccel: 70,
+      groundDecel: 92,
+      groundTurnAccel: 110,
+      airAccel: 24,
+      airDecel: 16,
+      airTurnAccel: 36,
+      knockbackThreshold: 1.35,
+      knockbackDecel: 26,
+      stopThreshold: 0.2
+    };
     const SPLIT_ENTER_Z = 48;
     const SPLIT_EXIT_Z = 38;
     const SPLIT_ENTER_X = 18;
@@ -1561,6 +1592,12 @@
 
     function clamp(value, min, max) {
       return Math.max(min, Math.min(max, value));
+    }
+
+    function approach(current, target, maxDelta) {
+      if (current < target) return Math.min(current + maxDelta, target);
+      if (current > target) return Math.max(current - maxDelta, target);
+      return target;
     }
 
     function lerp(a, b, t) {
@@ -2327,10 +2364,13 @@
         return false;
       }
       const root = skeletonCloneFn(cached.scene);
+      applyWeaponFilter(root, def.id);
+      root.updateMatrixWorld(true);
       const box = new THREE.Box3().setFromObject(root);
       const center = box.getCenter(new THREE.Vector3());
       const sizeY = box.max.y - box.min.y;
-      const scale = sizeY > 0.0001 ? 3.25 / sizeY : 1;
+      const rogueAdjustment = def.id === 'rogue' ? 0.8 : 1;
+      const scale = (sizeY > 0.0001 ? 3.25 / sizeY : 1) * rogueAdjustment;
       root.scale.setScalar(scale);
       root.position.set(-center.x * scale, -box.min.y * scale, -center.z * scale);
       root.rotation.set(0, 0, 0);
@@ -2351,7 +2391,6 @@
           if (object.material.color) object.material.color.set(def.tint);
         }
       });
-      applyWeaponFilter(root, def.id);
       enablePlayerLayer(root);
       model.visual.add(root);
       model.gltfRoot = root;
@@ -3017,6 +3056,8 @@
         visual.add(blush);
       }
 
+      visual.add(createStatusFx());
+
       balloonShell = outlinedMesh(
         cachedGeometry('balloonShell', () => new THREE.SphereGeometry(2.65, 18, 14)),
         materials.balloon,
@@ -3037,6 +3078,125 @@
       createSecondPlayerModel();
       players.forEach((p) => enablePlayerLayer(p.model && p.model.root));
       updatePlayerLabels();
+    }
+
+    function createStatusFx() {
+      const group = new THREE.Group();
+      group.name = 'statusFx';
+      const auraShell = new THREE.Mesh(
+        cachedGeometry('statusAuraShell', () => new THREE.IcosahedronGeometry(1, 2)),
+        new THREE.MeshBasicMaterial({
+          color: 0xffd166, transparent: true, opacity: 0, depthWrite: false,
+          blending: THREE.AdditiveBlending, side: THREE.DoubleSide
+        })
+      );
+      auraShell.name = 'statusAuraShell';
+      auraShell.position.y = 1.55;
+      auraShell.scale.set(1.45, 1.9, 1.45);
+      group.add(auraShell);
+
+      const auraRing = new THREE.Mesh(
+        cachedGeometry('statusAuraRing', () => new THREE.TorusGeometry(1.18, 0.075, 6, 28)),
+        new THREE.MeshBasicMaterial({ color: 0xffd166, transparent: true, opacity: 0.7, depthWrite: false, blending: THREE.AdditiveBlending })
+      );
+      auraRing.name = 'statusAuraRing';
+      auraRing.rotation.x = Math.PI / 2;
+      auraRing.position.y = 1.0;
+      group.add(auraRing);
+
+      const speedLines = new THREE.Group();
+      speedLines.name = 'statusSpeedLines';
+      const speedLineGeometry = cachedGeometry('statusSpeedLine', () => new THREE.BoxGeometry(0.045, 0.045, 1.55));
+      for (let i = 0; i < 3; i += 1) {
+        const line = new THREE.Mesh(speedLineGeometry, new THREE.MeshBasicMaterial({ color: 0x9de0c1, transparent: true, opacity: 0.72, depthWrite: false, blending: THREE.AdditiveBlending }));
+        line.position.set((i - 1) * 0.32, 0.35 + i * 0.38, -0.92);
+        speedLines.add(line);
+      }
+      group.add(speedLines);
+
+      const shieldOrbit = new THREE.Group();
+      shieldOrbit.name = 'statusShieldOrbit';
+      const shieldGeometry = cachedGeometry('statusShieldPlate', () => new THREE.TorusGeometry(0.42, 0.08, 6, 16));
+      const shieldMaterial = new THREE.MeshBasicMaterial({ color: 0xffe6a6, transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending });
+      for (let i = 0; i < 3; i += 1) {
+        const shield = new THREE.Mesh(shieldGeometry, shieldMaterial.clone());
+        shield.name = `statusShield${i}`;
+        shield.position.set(Math.cos(i / 3 * Math.PI * 2) * 1.35, 1.35, Math.sin(i / 3 * Math.PI * 2) * 1.35);
+        shield.rotation.y = i / 3 * Math.PI * 2;
+        shield.scale.set(0.78, 1.2, 0.78);
+        shieldOrbit.add(shield);
+      }
+      group.add(shieldOrbit);
+
+      const jumpRings = new THREE.Group();
+      jumpRings.name = 'statusJumpRings';
+      const jumpRingGeometry = cachedGeometry('statusJumpRing', () => new THREE.TorusGeometry(0.44, 0.055, 5, 18));
+      for (let i = 0; i < 3; i += 1) {
+        const ring = new THREE.Mesh(jumpRingGeometry, new THREE.MeshBasicMaterial({ color: 0xc5b8f5, transparent: true, opacity: 0.85, depthWrite: false, blending: THREE.AdditiveBlending }));
+        ring.name = `statusJumpRing${i}`;
+        ring.rotation.x = Math.PI / 2;
+        ring.position.set((i - 1) * 0.42, 3.0 + i * 0.28, 0);
+        jumpRings.add(ring);
+      }
+      group.add(jumpRings);
+
+      const magnetOrbit = new THREE.Group();
+      magnetOrbit.name = 'statusMagnetOrbit';
+      const starGeometry = cachedGeometry('statusStarOrbit', () => new THREE.OctahedronGeometry(0.14, 0));
+      for (let i = 0; i < 4; i += 1) {
+        const star = new THREE.Mesh(starGeometry, new THREE.MeshBasicMaterial({ color: 0xffd6ec, transparent: true, opacity: 0.85, depthWrite: false, blending: THREE.AdditiveBlending }));
+        magnetOrbit.add(star);
+      }
+      group.add(magnetOrbit);
+
+      const glideClouds = new THREE.Group();
+      glideClouds.name = 'statusGlideClouds';
+      const cloudGeometry = cachedGeometry('statusGlideCloud', () => new THREE.SphereGeometry(0.34, 8, 6));
+      const cloudMaterial = new THREE.MeshBasicMaterial({ color: 0xa8d8ff, transparent: true, opacity: 0.68, depthWrite: false });
+      for (let i = 0; i < 3; i += 1) {
+        const puff = new THREE.Mesh(cloudGeometry, cloudMaterial);
+        puff.position.set((i - 1) * 0.48, 0.12, 0.18 - Math.abs(i - 1) * 0.12);
+        puff.scale.set(1.35, 0.58, 0.85);
+        glideClouds.add(puff);
+      }
+      group.add(glideClouds);
+
+      const bananaDrops = new THREE.Group();
+      bananaDrops.name = 'statusBananaDrops';
+      for (let i = 0; i < 3; i += 1) {
+        const drop = new THREE.Mesh(
+          cachedGeometry('statusBananaDrop', () => new THREE.SphereGeometry(0.12, 7, 5)),
+          new THREE.MeshBasicMaterial({ color: 0xffd166, transparent: true, opacity: 0.82, depthWrite: false })
+        );
+        drop.position.set((i - 1) * 0.5, 0.18, -0.45 - i * 0.16);
+        bananaDrops.add(drop);
+      }
+      group.add(bananaDrops);
+
+      const reverseArrows = new THREE.Group();
+      reverseArrows.name = 'statusReverseArrows';
+      const arrowGeometry = cachedGeometry('statusReverseArrow', () => new THREE.ConeGeometry(0.16, 0.48, 7));
+      for (let i = 0; i < 3; i += 1) {
+        const arrow = new THREE.Mesh(arrowGeometry, new THREE.MeshBasicMaterial({ color: 0xc5b8f5, transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending }));
+        arrow.position.set((i - 1) * 0.58, 2.35, 0);
+        arrow.rotation.z = i % 2 === 0 ? Math.PI / 2 : -Math.PI / 2;
+        reverseArrows.add(arrow);
+      }
+      group.add(reverseArrows);
+
+      const inkWisps = new THREE.Group();
+      inkWisps.name = 'statusInkWisps';
+      for (let i = 0; i < 4; i += 1) {
+        const wisp = new THREE.Mesh(
+          cachedGeometry('statusInkWisp', () => new THREE.SphereGeometry(0.32, 7, 5)),
+          new THREE.MeshBasicMaterial({ color: 0x21162f, transparent: true, opacity: 0.72, depthWrite: false })
+        );
+        inkWisps.add(wisp);
+      }
+      group.add(inkWisps);
+
+      group.visible = false;
+      return group;
     }
 
     function createSheepShell() {
@@ -3110,6 +3270,17 @@
         rightArm: root.getObjectByName('rightArm'),
         balloonShell: root.getObjectByName('balloonShell'),
         sheepShell: root.getObjectByName('sheepShell'),
+        statusFx: root.getObjectByName('statusFx'),
+        statusAuraShell: root.getObjectByName('statusAuraShell'),
+        statusAuraRing: root.getObjectByName('statusAuraRing'),
+        statusSpeedLines: root.getObjectByName('statusSpeedLines'),
+        statusShieldOrbit: root.getObjectByName('statusShieldOrbit'),
+        statusJumpRings: root.getObjectByName('statusJumpRings'),
+        statusMagnetOrbit: root.getObjectByName('statusMagnetOrbit'),
+        statusGlideClouds: root.getObjectByName('statusGlideClouds'),
+        statusBananaDrops: root.getObjectByName('statusBananaDrops'),
+        statusReverseArrows: root.getObjectByName('statusReverseArrows'),
+        statusInkWisps: root.getObjectByName('statusInkWisps'),
         label: root.getObjectByName('playerLabel'),
         gltfRoot: null,
         gltfMixer: null,
@@ -3125,7 +3296,11 @@
       clone.userData.playerId = 1;
       scene.add(clone);
       clone.traverse((object) => {
-        if (!object.isMesh || object.userData.isOutline) return;
+        if (!object.isMesh) return;
+        if (object.parent && String(object.parent.name).startsWith('status') && object.material) {
+          object.material = Array.isArray(object.material) ? object.material.map((item) => item.clone()) : object.material.clone();
+        }
+        if (object.userData.isOutline) return;
         if (object.userData.part === 'body' || object.userData.part === 'limb') {
           object.material = object.material.clone();
           object.material.color.set(0xf17d86);
@@ -6042,12 +6217,21 @@
       const orb = outlinedMesh(cachedGeometry('projectileOrb', () => new THREE.IcosahedronGeometry(0.62, 1)), material, 1.08);
       group.add(orb);
       group.add(createQuestionSprite());
+      const lockRing = new THREE.Mesh(
+        cachedGeometry('questionLockRing', () => new THREE.TorusGeometry(0.92, 0.07, 6, 24)),
+        new THREE.MeshBasicMaterial({ color: 0xff5da8, transparent: true, opacity: 0.72 })
+      );
+      lockRing.rotation.x = Math.PI / 2;
+      group.add(lockRing);
       group.position.set(p.x, p.y + 2.3 * p.sizeScale, p.z + (p.id === 0 ? 1 : -1) * 0.6);
       group.userData = {
         ownerId: p.id,
         targetId: target.id,
         speed: 34,
         radius: 1.6,
+        age: 0,
+        autoHitAt: 3,
+        lockRing,
         visualOnly
       };
       scene.add(group);
@@ -6089,6 +6273,7 @@
           removeProjectile(projectile);
           continue;
         }
+        data.age = (data.age || 0) + dt;
         const targetPos = new THREE.Vector3(target.x, target.y + 2.0 * target.sizeScale, target.z);
         const direction = targetPos.sub(projectile.position);
         const distance = direction.length();
@@ -6098,9 +6283,23 @@
           continue;
         }
         direction.normalize();
-        projectile.position.addScaledVector(direction, data.speed * dt);
+        const urgency = clamp(data.age / data.autoHitAt, 0, 1);
+        projectile.position.addScaledVector(direction, (data.speed + urgency * 14) * dt);
         projectile.rotation.y += dt * 9;
         projectile.rotation.x += dt * 6;
+        if (data.lockRing) {
+          data.lockRing.rotation.z += dt * (3 + urgency * 7);
+          const lockPulse = 1 + Math.sin(game.elapsed * (7 + urgency * 8)) * (0.08 + urgency * 0.12);
+          data.lockRing.scale.setScalar(lockPulse);
+          data.lockRing.material.opacity = 0.45 + urgency * 0.5;
+        }
+        projectile.scale.setScalar(1 + urgency * 0.22);
+        if (data.age >= data.autoHitAt) {
+          if (!data.visualOnly) resolveQuestionHit(data.ownerId, target);
+          else spawnBurst(targetPos, 0xff8fc7, 16, 6.2, 0.75);
+          removeProjectile(projectile);
+          continue;
+        }
         if (Math.random() < 0.25) spawnBurst(projectile.position, 0xff8fc7, 1, 1.1, 0.32);
       }
     }
@@ -6271,6 +6470,10 @@
     }
 
     function renderEffectHud() {
+      const icons = {
+        invincible: '✦', speed: '➤', roll: '●', triple: '↟', magnet: '★', shrink: '◆', glide: '☁', dash: '»', shield: '⬡',
+        banana: '∿', reverse: '↔', ink: '●', giant: '▲', giantSkill: '▲'
+      };
       const render = (container, p) => {
         container.innerHTML = '';
         const entries = Object.values(p.effects);
@@ -6280,7 +6483,10 @@
           const chip = document.createElement('span');
           chip.className = `effect-chip ${effect.buff ? 'buff' : 'trap'}`;
           const time = effect.id === 'shield' ? `${Math.max(1, effect.charges || 1)}次` : `${Math.max(0, effect.time).toFixed(1)}s`;
-          chip.textContent = `${def.short} ${time}`;
+          const ratio = effect.id === 'shield' ? 1 : effect.time / Math.max(0.001, effect.duration || 1);
+          if (effect.id !== 'shield' && (effect.time <= 2 || ratio <= 0.25)) chip.classList.add('expiring');
+          chip.textContent = `${icons[effect.id] || '•'}${def.short} ${time}`;
+          chip.title = `${def.name}：${time}`;
           container.appendChild(chip);
         }
       };
@@ -6467,6 +6673,7 @@
         ? `${Math.round(Math.max(p1Ratio, p2Ratio) * 100)}%${game.splitScreen ? ' · 分屏' : ''}`
         : '单人模式';
       const duo = game.mode === 'duo';
+      dom.hud.classList.toggle('single-mode', !duo);
       dom.p2Hud.classList.toggle('visible', duo);
       dom.duoHud.classList.toggle('visible', duo);
       dom.progressHud.classList.toggle('visible', !duo);
@@ -6718,7 +6925,7 @@
 
       const controls = inputs[p.id] || inputs[0];
       p.bumpTime = Math.max(0, p.bumpTime - dt);
-      let inputX = p.bumpTime > 0 ? 0 : visualInputAxis(controls);
+      let inputX = p.bumpTime > 0 || p.balloonTime > 0 ? 0 : visualInputAxis(controls);
       if (p.bumpTime <= 0) {
         if (hasEffect(p, 'reverse')) inputX *= -1;
         if (hasEffect(p, 'banana')) inputX = Math.sin(game.elapsed * 7.2 + p.id * 1.7) * 1.8;
@@ -6756,15 +6963,25 @@
       p.forwardSpeed = Math.max(0, speed + p.forwardBonus);
       p.z += p.forwardSpeed * dt;
 
-      let controlSpeed = p.grounded ? 22 : 16.5;
+      let controlSpeed = p.grounded ? CONTROL_TUNING.groundSpeed : CONTROL_TUNING.airSpeed;
       if (hasTalent('a3')) controlSpeed *= 1.15;
       if (cloudTalent) controlSpeed *= 1.2;
       if (hasEffect(p, 'glide')) controlSpeed *= 1.25;
       if (hasEffect(p, 'roll')) controlSpeed *= 0.82;
       const targetVelocity = inputX * controlSpeed;
-      const acceleration = p.grounded ? (inputX === 0 ? 34 : 52) : (inputX === 0 ? 7 : 20);
-      const maxDelta = acceleration * dt;
-      p.vx += clamp(targetVelocity - p.vx, -maxDelta, maxDelta);
+      const turning = inputX !== 0 && p.vx * inputX < 0;
+      let acceleration;
+      if (inputX === 0) {
+        acceleration = Math.abs(p.vx) > controlSpeed * CONTROL_TUNING.knockbackThreshold
+          ? CONTROL_TUNING.knockbackDecel
+          : (p.grounded ? CONTROL_TUNING.groundDecel : CONTROL_TUNING.airDecel);
+      } else if (turning) {
+        acceleration = p.grounded ? CONTROL_TUNING.groundTurnAccel : CONTROL_TUNING.airTurnAccel;
+      } else {
+        acceleration = p.grounded ? CONTROL_TUNING.groundAccel : CONTROL_TUNING.airAccel;
+      }
+      p.vx = approach(p.vx, targetVelocity, acceleration * dt);
+      if (inputX === 0 && Math.abs(p.vx) < CONTROL_TUNING.stopThreshold) p.vx = 0;
       if (p.chargeTime > 0 && p.chargeKind === 'roll') {
         // 翻滚时左右键直接改变滚动方向；不按方向键则笔直向前滚。
         const rollControl = (p.upgradeLevel || 0) >= 2 ? 1.3 : 1;
@@ -6871,22 +7088,28 @@
         const horizontalSq = dx * dx + dz * dz;
         const scale = p.sizeScale;
 
+        const bounceRadius = (obstacle.radius + 0.8) * scale;
+        const bounceTop = p.y + 3.2 * scale;
+        const bounceBottom = obstacle.groundY - 0.45 * scale;
+        const bounceCeiling = obstacle.topY + 0.8 * scale;
+        const bounceContact = horizontalSq <= bounceRadius * bounceRadius &&
+          bounceTop >= bounceBottom && p.y <= bounceCeiling && p.vy <= 4.5;
+
         if (obstacle.type === 'jelly') {
-          const nearTop = p.y <= obstacle.topY + 0.62 * scale && p.y >= obstacle.topY - 0.96 * scale;
-          if (horizontalSq <= (obstacle.radius * scale) ** 2 && nearTop && p.vy <= 1.5) {
+          if (bounceContact) {
             p.y = obstacle.topY + 0.02;
-            p.vy = 18.5 + (scale - 1) * -2.2;
+            p.vy = 20.5 + (scale - 1) * -2.2;
             p.grounded = false;
             p.jumpsUsed = 1;
             p.squash = -0.22;
             obstacle.cooldown = 0.72;
+            obstacle.impactTime = 0.24;
             if (game.mode === 'single') savedState.stats.totalJelly += 1;
             spawnBurst(new THREE.Vector3(obstacle.x, obstacle.topY, obstacle.z), 0x8be1ff, 12, 5.2);
             playSfx('jelly');
           }
         } else if (obstacle.type === 'soft') {
-          const nearTop = p.y <= obstacle.topY + 0.54 * scale && p.y >= obstacle.topY - 0.88 * scale;
-          if (horizontalSq <= (obstacle.radius * scale) ** 2 && nearTop && p.vy <= 1.5) {
+          if (bounceContact) {
             const direction = Math.abs(dx) > 0.18 ? Math.sign(dx) : (Math.random() < 0.5 ? -1 : 1);
             p.y = obstacle.topY + 0.04;
             p.vy = 25.5;
@@ -6896,6 +7119,7 @@
             p.spinTime = 1.55;
             p.spinVelocity = direction * 10.5;
             obstacle.cooldown = 1.0;
+            obstacle.impactTime = 0.28;
             spawnBurst(new THREE.Vector3(obstacle.x, obstacle.topY, obstacle.z), 0xcdb4ff, 16, 6.6, 0.95);
             playSfx('soft');
           }
@@ -7136,10 +7360,12 @@
     function updateObstacles(dt) {
       for (const obstacle of world.obstacles) {
         if (obstacle.destroyed || !obstacle.group.visible) continue;
+        obstacle.impactTime = Math.max(0, (obstacle.impactTime || 0) - dt);
+        const impact = obstacle.impactTime > 0 ? obstacle.impactTime : 0;
         const wave = Math.sin(game.elapsed * 2.15 + obstacle.phase);
         if (obstacle.type === 'jelly') {
-          const pulse = 1 + wave * 0.035;
-          obstacle.body.scale.set(1.18 * pulse, 0.88 / pulse, pulse);
+          const pulse = 1 + wave * 0.035 - impact * 0.32;
+          obstacle.body.scale.set(1.18 * pulse, Math.max(0.35, 0.88 / pulse), pulse);
           obstacle.group.rotation.z = wave * 0.018;
         } else if (obstacle.type === 'windmill') {
           obstacle.blades.rotation.z += dt * 0.62;
@@ -7147,7 +7373,7 @@
           obstacle.group.rotation.z = wave * 0.018;
           obstacle.group.position.y = obstacle.groundY + Math.max(0, wave) * 0.035;
         } else if (obstacle.type === 'soft') {
-          const pulse = 1 + wave * 0.045;
+          const pulse = 1 + wave * 0.045 - impact * 0.28;
           obstacle.cap.scale.set(1.16 * pulse, 0.72 / pulse, 1.16 * pulse);
         } else if (obstacle.type === 'balloon') {
           obstacle.group.position.y = obstacle.groundY + wave * 0.12;
@@ -7178,12 +7404,152 @@
       }
     }
 
+    function effectExpiring(p, id) {
+      const effect = p.effects[id];
+      if (!effect || effect.id === 'shield') return false;
+      const duration = Math.max(0.001, effect.duration || effect.time || 1);
+      return effect.time <= 2 || effect.time / duration <= 0.25;
+    }
+
+    function updateStatusVisuals(p, model, dt) {
+      const fx = model && model.statusFx;
+      if (!fx) return;
+      const groups = [
+        fx.statusAuraShell, fx.statusAuraRing, fx.statusSpeedLines, fx.statusShieldOrbit,
+        fx.statusJumpRings, fx.statusMagnetOrbit, fx.statusGlideClouds,
+        fx.statusBananaDrops, fx.statusReverseArrows, fx.statusInkWisps
+      ];
+      groups.forEach((part) => { if (part) part.visible = false; });
+      model.statusExpiryBlink = false;
+      if (game.phase !== 'running' || game.paused || p.recoveryTime > 0 || p.sheepTime > 0) {
+        fx.visible = false;
+        groups.forEach((part) => { if (part) part.visible = false; });
+        return;
+      }
+      fx.visible = true;
+
+      const invincible = hasEffect(p, 'invincible');
+      const giant = hasEffect(p, 'giant') || hasEffect(p, 'giantSkill');
+      const speed = hasEffect(p, 'speed');
+      const dash = hasEffect(p, 'dash');
+      const roll = hasEffect(p, 'roll');
+      const triple = hasEffect(p, 'triple');
+      const magnet = hasEffect(p, 'magnet');
+      const shrink = hasEffect(p, 'shrink');
+      const glide = hasEffect(p, 'glide');
+      const banana = hasEffect(p, 'banana');
+      const reverse = hasEffect(p, 'reverse');
+      const ink = hasEffect(p, 'ink');
+      const shield = hasEffect(p, 'shield');
+      const hasAura = invincible || giant || speed || dash || roll || shrink || banana || reverse || ink;
+
+      if (hasAura && fx.statusAuraShell && fx.statusAuraRing) {
+        const color = fx._auraColor || (fx._auraColor = new THREE.Color());
+        if (invincible) color.setHSL((game.elapsed * 0.32) % 1, 0.78, 0.62);
+        else if (giant) color.set(0xffb35f);
+        else if (dash) color.set(0xffb96b);
+        else if (speed || roll) color.set(0x9de0c1);
+        else if (shrink) color.set(0xb7f0dd);
+        else if (banana) color.set(0xffd166);
+        else if (reverse) color.set(0xc5b8f5);
+        else color.set(0x544b6d);
+        const pulse = 0.82 + Math.sin(game.elapsed * 8.5) * 0.18;
+        const expiring = (invincible && effectExpiring(p, 'invincible')) || (giant && (effectExpiring(p, 'giant') || effectExpiring(p, 'giantSkill')));
+        const blink = expiring ? (Math.sin(game.elapsed * 24) > -0.15 ? 1 : 0.35) : 1;
+        fx.statusAuraShell.visible = true;
+        fx.statusAuraShell.material.color.copy(color);
+        fx.statusAuraShell.material.opacity = (invincible ? 0.28 : 0.2) * pulse * blink;
+        fx.statusAuraShell.scale.set(1.45, 1.9, 1.45);
+        fx.statusAuraRing.visible = true;
+        fx.statusAuraRing.material.color.copy(color);
+        fx.statusAuraRing.material.opacity = 0.58 * pulse * blink;
+        fx.statusAuraRing.rotation.z += dt * (invincible ? 3.4 : 1.8);
+      }
+
+      if ((speed || dash) && fx.statusSpeedLines) {
+        fx.statusSpeedLines.visible = true;
+        const intensity = dash ? 1 : 0.7;
+        fx.statusSpeedLines.children.forEach((line, index) => {
+          line.material.color.set(dash ? 0xffb96b : 0x9de0c1);
+          line.material.opacity = intensity * (0.45 + Math.sin(game.elapsed * 14 + index) * 0.28);
+          line.scale.z = 0.75 + intensity * 0.7;
+        });
+      }
+
+      if (shield && fx.statusShieldOrbit) {
+        fx.statusShieldOrbit.visible = true;
+        fx.statusShieldOrbit.rotation.y += dt * 2.8;
+        fx.statusShieldOrbit.rotation.z += dt * 0.8;
+        const charges = Math.max(1, p.effects.shield.charges || 1);
+        fx.statusShieldOrbit.children.forEach((part, index) => {
+          part.material.opacity = index < charges ? 0.95 : 0.28;
+          part.scale.setScalar(index < charges ? 1 : 0.72);
+        });
+      }
+
+      if (triple && fx.statusJumpRings) {
+        fx.statusJumpRings.visible = true;
+        const available = clamp(3 - (p.jumpsUsed || 0), 0, 3);
+        fx.statusJumpRings.children.forEach((ring, index) => {
+          ring.material.opacity = index < available ? 0.9 : 0.16;
+          ring.visible = index < 3;
+          ring.rotation.z += dt * (index % 2 ? -2 : 2);
+        });
+      }
+
+      if (magnet && fx.statusMagnetOrbit) {
+        fx.statusMagnetOrbit.visible = true;
+        fx.statusMagnetOrbit.children.forEach((star, index) => {
+          const angle = game.elapsed * 3.2 + index / fx.statusMagnetOrbit.children.length * Math.PI * 2;
+          star.position.set(Math.cos(angle) * 1.45, 1.3 + Math.sin(angle * 2 + index) * 0.55, Math.sin(angle) * 1.45);
+          star.rotation.y += dt * 4;
+        });
+      }
+
+      if (glide && fx.statusGlideClouds) {
+        fx.statusGlideClouds.visible = !p.grounded;
+        fx.statusGlideClouds.children.forEach((puff, index) => {
+          puff.position.y = 0.08 + Math.sin(game.elapsed * 7 + index) * 0.08;
+          puff.scale.x = 1.3 + Math.sin(game.elapsed * 9 + index) * 0.18;
+        });
+      }
+
+      if (banana && fx.statusBananaDrops) {
+        fx.statusBananaDrops.visible = true;
+        fx.statusBananaDrops.children.forEach((drop, index) => {
+          drop.position.x = (index - 1) * 0.48 + Math.sin(game.elapsed * 9 + index * 1.7) * 0.24;
+          drop.position.y = 0.15 + Math.abs(Math.sin(game.elapsed * 8 + index)) * 0.18;
+        });
+      }
+
+      if (reverse && fx.statusReverseArrows) {
+        fx.statusReverseArrows.visible = true;
+        fx.statusReverseArrows.rotation.y += dt * 2.4;
+        fx.statusReverseArrows.children.forEach((arrow, index) => {
+          arrow.position.y = 2.25 + Math.sin(game.elapsed * 6 + index) * 0.18;
+        });
+      }
+
+      if (ink && fx.statusInkWisps) {
+        fx.statusInkWisps.visible = true;
+        fx.statusInkWisps.children.forEach((wisp, index) => {
+          const angle = game.elapsed * 1.8 + index / fx.statusInkWisps.children.length * Math.PI * 2;
+          wisp.position.set(Math.cos(angle) * 1.15, 1.15 + Math.sin(angle * 1.8) * 0.65, Math.sin(angle) * 1.15);
+          wisp.scale.setScalar(0.8 + Math.sin(game.elapsed * 5 + index) * 0.12);
+        });
+      }
+
+      model.statusExpiryBlink = giant && (effectExpiring(p, 'giant') || effectExpiring(p, 'giantSkill'));
+    }
+
     function animateModel(p, dt) {
       const model = p.model;
       if (!model) return;
+      updateStatusVisuals(p, model, dt);
       const duoCharacterPreview = game.phase === 'skins' && game.characterPick && game.characterPick.count > 1;
       const previewing = (game.phase === 'title' || game.phase === 'skins' || game.phase === 'upgrade') && (p.id === 0 || duoCharacterPreview);
       if (previewing) {
+        model.visual.visible = true;
         const selecting = game.phase === 'skins' || game.phase === 'upgrade';
         const offset = duoCharacterPreview ? (p.id === 0 ? -2.2 : 2.2) : 0;
         if (selecting) {
@@ -7211,8 +7577,10 @@
       const slope = centerX(p.z + 2) - centerX(p.z - 2);
       p.heading = Math.atan2(slope, 4);
       model.root.rotation.y = p.heading;
-      if (game.mode === 'single' && model.visual) {
-        model.visual.visible = game.iframeTimer > 0 ? Math.floor(game.elapsed * 14) % 2 === 0 : true;
+      if (model.visual) {
+        const iframeBlink = game.mode !== 'single' || game.iframeTimer <= 0 || Math.floor(game.elapsed * 14) % 2 === 0;
+        const expiryBlink = !model.statusExpiryBlink || Math.floor(game.elapsed * 12) % 2 === 0;
+        model.visual.visible = iframeBlink && expiryBlink;
       }
 
       if (p.sheepTime > 0) {
@@ -7226,7 +7594,6 @@
         if (model.gltfMixer) updateGltfAnimation(p, model, dt);
         return;
       }
-      if (model.visual && !model.visual.visible) model.visual.visible = true;
       if (model.sheepShell && model.sheepShell.visible) model.sheepShell.visible = false;
 
       let recoveryScale = 1;
@@ -7586,12 +7953,19 @@
             enemies: world.enemies.filter((enemy) => enemy.active).length,
             bullets: world.enemyBullets.filter((bullet) => bullet.active).length,
             obstacles: world.obstacles.filter((obstacle) => !obstacle.destroyed && obstacle.runEnabled !== false).length,
+            bounceObstacles: world.obstacles.filter((obstacle) => obstacle.type === 'jelly' || obstacle.type === 'soft').map((obstacle) => ({
+              type: obstacle.type,
+              z: obstacle.z,
+              cooldown: obstacle.cooldown,
+              impactTime: obstacle.impactTime || 0
+            })),
             destroyed: run.destroyed,
             giantCrushKills: run.giantCrushKills,
             seed: game.seed,
             player: { x: player.x, y: player.y, z: player.z },
             players: players.map((p) => ({
               id: p.id, active: p.active, x: p.x, y: p.y, z: p.z,
+              vx: p.vx, vy: p.vy,
               stars: p.stars, coins: p.coins, mushrooms: p.mushrooms,
               fellCount: p.fellCount, effects: cloneEffects(p.effects),
               stamina: p.stamina, skillDelay: p.skillDelay, questionCharges: p.questionCharges,
@@ -7604,6 +7978,19 @@
               inkAmount: Number(inkAmountFor(p).toFixed(3)),
               character: p.model ? p.model.characterId : null,
               characterSkill: p.model ? characterSkillFor(p).name : null,
+              statusVisuals: p.model && p.model.statusFx ? {
+                visible: p.model.statusFx.visible,
+                aura: Boolean(p.model.statusAuraShell && p.model.statusAuraShell.visible),
+                speedLines: Boolean(p.model.statusSpeedLines && p.model.statusSpeedLines.visible),
+                shield: Boolean(p.model.statusShieldOrbit && p.model.statusShieldOrbit.visible),
+                triple: Boolean(p.model.statusJumpRings && p.model.statusJumpRings.visible),
+                magnet: Boolean(p.model.statusMagnetOrbit && p.model.statusMagnetOrbit.visible),
+                glide: Boolean(p.model.statusGlideClouds && p.model.statusGlideClouds.visible),
+                banana: Boolean(p.model.statusBananaDrops && p.model.statusBananaDrops.visible),
+                reverse: Boolean(p.model.statusReverseArrows && p.model.statusReverseArrows.visible),
+                ink: Boolean(p.model.statusInkWisps && p.model.statusInkWisps.visible),
+                expiryBlink: Boolean(p.model.statusExpiryBlink)
+              } : null,
               sheepVisible: Boolean(p.model && p.model.sheepShell && p.model.sheepShell.visible),
               visualHidden: Boolean(p.model && p.model.visual && !p.model.visual.visible),
               modelKind: p.model && p.model.gltfRoot ? 'gltf' : 'procedural'
@@ -7621,6 +8008,14 @@
             splitScreen: game.splitScreen,
             net: { role: NET.role, room: NET.room, connected: NET.connected, peer: NET.peer, started: NET.started },
             questionProjectiles: world.projectiles.length,
+            questionProjectileInfo: world.projectiles.map((projectile) => ({
+              ownerId: projectile.userData.ownerId,
+              targetId: projectile.userData.targetId,
+              age: projectile.userData.age || 0,
+              x: projectile.position.x,
+              y: projectile.position.y,
+              z: projectile.position.z
+            })),
             skillProjectiles: world.powerProjectiles.length,
             slashEffects: world.slashEffects.length,
             elapsed: game.elapsed,
@@ -7653,6 +8048,36 @@
           const targetZ = clamp(Number(z) || player.z + 120, 0, LEVEL.endZ);
           const enemy = spawnEnemyAt(targetZ);
           return enemy ? clone(api.getState()) : false;
+        },
+        spawnBounceObstacle(type, z, xOffset = 0) {
+          if (!['jelly', 'soft'].includes(type)) return false;
+          const targetZ = clamp(Number(z) || player.z + 12, 0, LEVEL.endZ);
+          const x = centerX(targetZ) + (Number(xOffset) || 0);
+          const y = surfaceYAt(x, targetZ) || pathY(targetZ);
+          const index = world.obstacles.length;
+          if (type === 'jelly') createJelly(index, x, y, targetZ);
+          else createSoftMushroom(index, x, y, targetZ);
+          const obstacle = world.obstacles[world.obstacles.length - 1];
+          obstacle.zone = clamp(Math.floor(targetZ / LEVEL.zoneLength), 0, LEVEL.zones - 1);
+          obstacle.runEnabled = true;
+          obstacle.destroyed = false;
+          obstacle.cooldown = 0;
+          obstacle.group.visible = true;
+          updateHud();
+          return clone(api.getState());
+        },
+        getProjectileState() {
+          return world.projectiles.map((projectile) => ({
+            ownerId: projectile.userData.ownerId,
+            targetId: projectile.userData.targetId,
+            age: projectile.userData.age || 0,
+            autoHitAt: projectile.userData.autoHitAt || 0,
+            distance: Math.hypot(
+              projectile.position.x - players[projectile.userData.targetId].x,
+              projectile.position.y - (players[projectile.userData.targetId].y + 2),
+              projectile.position.z - players[projectile.userData.targetId].z
+            )
+          }));
         },
         spawnEnemyShot(z) {
           if (game.mode !== 'single') return false;
@@ -7950,6 +8375,9 @@
             ['barbarian skill is grow', CHARACTER_SKILLS.grow.duration > 0 && CHARACTER_DEFS.find((def) => def.id === 'barbarian').skill === 'grow'],
             ['skill stamina is usable', SKILL_CONFIG.fillRate > 0 && SKILL_CONFIG.max === 1],
             ['jump height raised', JUMP_VELOCITIES.first === 13.4 && JUMP_VELOCITIES.second === 12.3],
+            ['responsive ground movement tuning', CONTROL_TUNING.groundSpeed === 24 && CONTROL_TUNING.groundAccel === 70 && CONTROL_TUNING.groundDecel === 92 && CONTROL_TUNING.groundTurnAccel === 110],
+            ['approach helper', approach(0, 10, 2) === 2 && approach(10, 0, 3) === 7],
+            ['status effect rig', Boolean(players[0].model.statusFx && players[0].model.statusShieldOrbit && players[0].model.statusJumpRings)],
             ['split screen thresholds', SPLIT_ENTER_Z > SPLIT_EXIT_Z && SPLIT_ENTER_X > SPLIT_EXIT_X],
             ['trap cap documented', Object.keys(TRAP_DEFS).length <= 4],
             ['storage normalization', normalizeStats({ totalStars: -2 }).totalStars === 0],
