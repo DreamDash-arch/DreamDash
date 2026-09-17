@@ -951,6 +951,51 @@
       to { filter: brightness(1.45); transform: scale(1.06); }
     }
 
+    .notice-stack {
+      position: absolute;
+      bottom: 88px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      width: min(286px, 31vw);
+      pointer-events: none;
+      z-index: 18;
+    }
+
+    #noticeP1 { left: 18px; }
+    #noticeP2 { right: 18px; align-items: flex-end; }
+
+    .notice-item {
+      width: max-content;
+      max-width: 100%;
+      padding: 7px 9px;
+      border: 2px solid rgba(53,43,77,.7);
+      border-radius: 13px;
+      background: rgba(255,251,242,.9);
+      box-shadow: 0 4px 12px rgba(63,43,82,.16);
+      color: var(--ink);
+      font-size: 11px;
+      line-height: 1.25;
+      font-weight: 850;
+      animation: noticeIn 180ms ease-out;
+    }
+
+    .notice-item strong { display: block; font-size: 12px; }
+    .notice-item span { display: block; margin-top: 2px; color: var(--ink-soft); font-size: 10px; }
+    .notice-item.blue { background: linear-gradient(180deg, #f8fdff, #cdeeff); }
+    .notice-item.pink { background: linear-gradient(180deg, #fff8fb, #ffd4e6); }
+    .notice-item.gold { background: linear-gradient(180deg, #fffde8, #ffe7a9); }
+    .notice-item.out { animation: noticeOut 280ms ease-in forwards; }
+
+    @keyframes noticeIn {
+      from { opacity: 0; transform: translateY(8px) scale(.96); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    @keyframes noticeOut {
+      to { opacity: 0; transform: translateY(6px) scale(.96); }
+    }
+
     #inkOverlay {
       position: fixed;
       inset: 0;
@@ -1044,6 +1089,8 @@
       <div id="effectsP2" class="effect-strips"></div>
       <div id="skillP1" class="skill-strips"></div>
       <div id="skillP2" class="skill-strips"></div>
+      <div id="noticeP1" class="notice-stack" aria-live="polite"></div>
+      <div id="noticeP2" class="notice-stack" aria-live="polite"></div>
       <div id="hintHud" class="hud-cluster">P1：A/D + W　·　单人：←/→ + ↑/Space</div>
     </div>
 
@@ -1322,6 +1369,8 @@
       effectsP2: document.getElementById('effectsP2'),
       skillP1: document.getElementById('skillP1'),
       skillP2: document.getElementById('skillP2'),
+      noticeP1: document.getElementById('noticeP1'),
+      noticeP2: document.getElementById('noticeP2'),
       hint: document.getElementById('hintHud'),
       splitDivider: document.getElementById('splitDivider'),
       audio: document.getElementById('audioBtn'),
@@ -1826,6 +1875,34 @@
       window.setTimeout(() => toast.remove(), 3050);
     }
 
+    function showNotice(playerId = 0, title = '', detail = '', tone = 'gold', forward = true) {
+      if (forward) netQueueEvent({ t: 'notice', p: playerId, a: title, b: detail, c: tone });
+      const container = playerId === 1 ? dom.noticeP2 : dom.noticeP1;
+      if (!container) return;
+      const item = document.createElement('div');
+      item.className = `notice-item ${tone}`;
+      const strong = document.createElement('strong');
+      strong.textContent = title;
+      item.appendChild(strong);
+      if (detail) {
+        const span = document.createElement('span');
+        span.textContent = detail;
+        item.appendChild(span);
+      }
+      container.prepend(item);
+      while (container.children.length > 3) container.lastElementChild.remove();
+      const lifetime = tone === 'pink' ? 2400 : 1900;
+      window.setTimeout(() => {
+        item.classList.add('out');
+        window.setTimeout(() => item.remove(), 300);
+      }, lifetime);
+    }
+
+    function clearNotices() {
+      if (dom.noticeP1) dom.noticeP1.replaceChildren();
+      if (dom.noticeP2) dom.noticeP2.replaceChildren();
+    }
+
     function updateTitleStats() {
       dom.titleTotalStars.textContent = String(savedState.stats.totalStars);
       if (dom.titleStarCoins) dom.titleStarCoins.textContent = String(savedState.stats.starCoins);
@@ -2326,7 +2403,7 @@
       const model = p && p.model;
       if (!model || !model.visual) return;
       model.visual.children.forEach((child) => {
-        if (child === model.gltfRoot) return;
+        if (child === model.gltfRoot || child === model.statusFx) return;
         child.visible = visible;
       });
     }
@@ -3057,8 +3134,6 @@
         visual.add(blush);
       }
 
-      visual.add(createStatusFx());
-
       balloonShell = outlinedMesh(
         cachedGeometry('balloonShell', () => new THREE.SphereGeometry(2.65, 18, 14)),
         materials.balloon,
@@ -3197,7 +3272,51 @@
       group.add(inkWisps);
 
       group.visible = false;
+      group.traverse((object) => {
+        if (object !== group) object.visible = false;
+      });
       return group;
+    }
+
+    function ensureStatusFx(model) {
+      if (!model || !model.visual) return null;
+      if (model.statusFx) return model.statusFx;
+      const fx = createStatusFx();
+      model.visual.add(fx);
+      model.statusFx = fx;
+      fx.statusAuraShell = fx.getObjectByName('statusAuraShell');
+      fx.statusAuraRing = fx.getObjectByName('statusAuraRing');
+      fx.statusSpeedLines = fx.getObjectByName('statusSpeedLines');
+      fx.statusShieldOrbit = fx.getObjectByName('statusShieldOrbit');
+      fx.statusJumpRings = fx.getObjectByName('statusJumpRings');
+      fx.statusMagnetOrbit = fx.getObjectByName('statusMagnetOrbit');
+      fx.statusGlideClouds = fx.getObjectByName('statusGlideClouds');
+      fx.statusBananaDrops = fx.getObjectByName('statusBananaDrops');
+      fx.statusReverseArrows = fx.getObjectByName('statusReverseArrows');
+      fx.statusInkWisps = fx.getObjectByName('statusInkWisps');
+      model.statusAuraShell = fx.statusAuraShell;
+      model.statusAuraRing = fx.statusAuraRing;
+      model.statusSpeedLines = fx.statusSpeedLines;
+      model.statusShieldOrbit = fx.statusShieldOrbit;
+      model.statusJumpRings = fx.statusJumpRings;
+      model.statusMagnetOrbit = fx.statusMagnetOrbit;
+      model.statusGlideClouds = fx.statusGlideClouds;
+      model.statusBananaDrops = fx.statusBananaDrops;
+      model.statusReverseArrows = fx.statusReverseArrows;
+      model.statusInkWisps = fx.statusInkWisps;
+      return fx;
+    }
+
+    function hideStatusFx(model) {
+      if (!model || !model.statusFx) return;
+      model.statusFx.visible = false;
+      [
+        model.statusAuraShell, model.statusAuraRing, model.statusSpeedLines,
+        model.statusShieldOrbit, model.statusJumpRings, model.statusMagnetOrbit,
+        model.statusGlideClouds, model.statusBananaDrops, model.statusReverseArrows,
+        model.statusInkWisps
+      ].forEach((part) => { if (part) part.visible = false; });
+      model.statusExpiryBlink = false;
     }
 
     function createSheepShell() {
@@ -4723,6 +4842,8 @@
         playSfx(event.n);
       } else if (event.t === 'toast') {
         showToast(event.a, event.b, event.c);
+      } else if (event.t === 'notice') {
+        showNotice(event.p, event.a, event.b, event.c, false);
       } else if (event.t === 'proj') {
         const owner = players[event.o];
         if (!owner) return;
@@ -5053,6 +5174,7 @@
     }
 
     function resetPlayerState(p, index) {
+      hideStatusFx(p.model);
       p.active = index < game.activePlayers;
       p.x = centerX(0) + (index === 0 ? -1.8 : 1.8);
       p.y = pathY(0) + 0.02;
@@ -5313,7 +5435,7 @@
       spawnBurst(new THREE.Vector3(player.x, player.y + 1.6, player.z), 0xff8fc7, 14, 6.0, 0.7);
       playTone({ frequency: 300, slideTo: 140, duration: 0.2, type: 'square', volume: 0.1 });
       if (player.hearts <= 0) dieAndRespawn();
-      else showToast('受到伤害！', `剩余 ${player.hearts} 颗心`, 'pink');
+      else showNotice(player.id, '受到伤害！', `剩余 ${player.hearts} 颗心`, 'pink');
       updateHud();
       return true;
     }
@@ -5338,7 +5460,7 @@
       game.enemySpawnTimer = 3;
       spawnBurst(new THREE.Vector3(player.x, player.y + 1.5, player.z), 0xffffff, 22, 7.0, 1.0);
       playSfx('checkpoint');
-      showToast('阵亡！', '从最近检查点复活，收集物都还在。', 'pink');
+      showNotice(0, '阵亡！', '从最近检查点复活，收集物都还在。', 'pink');
       updateHud();
     }
 
@@ -5348,7 +5470,7 @@
         run.destroyed -= 3;
         run.coins += 3;
         player.coins += 3;
-        showToast('障碍转化为金币！', '+3 金币', 'gold');
+        showNotice(0, '障碍转化为金币！', '+3 金币', 'gold');
         playSfx('coin');
       }
       updateHud();
@@ -5442,6 +5564,7 @@
       game.finishOrder = [];
       game.starRewardSettled = false;
       game.competitiveStarReward = 0;
+      clearNotices();
       game.historyTimer = 0;
       game.splitCooldown = 0;
       game.shake = 0;
@@ -5524,6 +5647,8 @@
     function returnToTitle() {
       game.paused = false;
       game.shake = 0;
+      players.forEach((p) => hideStatusFx(p.model));
+      clearNotices();
       setSplitScreen(false);
       clearProjectiles();
       clearPowerProjectiles();
@@ -5546,6 +5671,8 @@
       setScreen(dom.pauseScreen, game.paused);
       if (game.paused) {
         game.shake = 0;
+        players.forEach((p) => hideStatusFx(p.model));
+        clearNotices();
         clearProjectiles();
         clearPowerProjectiles();
         inputs.forEach((item) => { item.left = false; item.right = false; item.jumpQueued = false; });
@@ -5836,7 +5963,7 @@
         charges: def.charges || 0
       };
       p.pickupLog.push({ time: game.elapsed, kind: 'buff', type });
-      showToast(`${def.name}！`, p.id === 0 ? 'P1 获得增益' : 'P2 获得增益', 'blue');
+      showNotice(p.id, `${def.name}！`, p.id === 0 ? 'P1 获得增益' : 'P2 获得增益', 'blue');
       playTone({ frequency: 720, slideTo: 1120, duration: 0.25, type: 'sine', volume: 0.13 });
       spawnBurst(new THREE.Vector3(p.x, p.y + 2, p.z), new THREE.Color(def.color).getHex(), 14, 5.2, 0.9);
     }
@@ -5855,11 +5982,11 @@
       const def = TRAP_DEFS[type];
       if (!def) return false;
       if (isPlayerInvincible(p)) {
-        showToast('无敌挡下了陷阱', def.name, 'blue');
+        showNotice(p.id, '无敌挡下了陷阱', def.name, 'blue');
         return false;
       }
       if (consumeShield(p)) {
-        showToast('护盾抵消了陷阱', def.name, 'blue');
+        showNotice(p.id, '护盾抵消了陷阱', def.name, 'blue');
         return false;
       }
       const activeTraps = Object.keys(p.effects).filter((id) => !p.effects[id].buff);
@@ -5872,7 +5999,7 @@
       }
       p.effects[type] = { id: type, buff: false, time: def.duration, duration: def.duration };
       p.pickupLog.push({ time: game.elapsed, kind: 'trap', type });
-      showToast(`${def.name}！`, p.id === 0 ? 'P1 中了捣蛋道具' : 'P2 中了捣蛋道具', 'pink');
+      showNotice(p.id, `${def.name}！`, p.id === 0 ? 'P1 中了捣蛋道具' : 'P2 中了捣蛋道具', 'pink');
       playSfx(type === 'banana' ? 'jelly' : type === 'ink' ? 'pop' : 'soft');
       return true;
     }
@@ -5963,7 +6090,7 @@
         id: 'shield', buff: true, time: 999, duration: 999, charges
       };
       spawnBurst(new THREE.Vector3(p.x, p.y + 2, p.z), 0xfff0a6, 14, 4.8, 0.8);
-      showToast('星盾展开！', `可抵挡 ${charges} 次负面效果`, 'blue');
+      showNotice(p.id, '星盾展开！', `可抵挡 ${charges} 次负面效果`, 'blue');
       return true;
     }
 
@@ -5971,7 +6098,7 @@
       const maxHearts = difficultyDef(game.difficulty).hearts;
       if ((p.hearts || 0) >= maxHearts) return false;
       p.hearts = Math.min(maxHearts, (p.hearts || 0) + amount);
-      showToast('坚韧恢复！', `恢复 ${amount} 颗心`, 'blue');
+      showNotice(p.id, '坚韧恢复！', `恢复 ${amount} 颗心`, 'blue');
       playSfx('mission');
       updateHud();
       return true;
@@ -6006,7 +6133,7 @@
         if (p.model.visual) p.model.visual.visible = false;
       }
       spawnBurst(new THREE.Vector3(p.x, p.y + 1.2, p.z), 0xfff8ef, 18, 6.0, 0.9);
-      showToast('变成小羊了！', p.id === 0 ? 'P1 被定在原地' : 'P2 被定在原地', 'pink');
+      showNotice(p.id, '变成小羊了！', p.id === 0 ? 'P1 被定在原地' : 'P2 被定在原地', 'pink');
       playSfx('soft');
       return true;
     }
@@ -6113,7 +6240,7 @@
         };
         if (game.mode === 'single' && (p.upgradeLevel || 0) >= 3) tryHealPlayer(p, 1);
         spawnBurst(new THREE.Vector3(p.x, p.y + 2.4, p.z), skill.color, 24, 8.5, 1.0);
-        showToast('蛮人变大！', game.mode === 'single' ? '体型 500%，无敌碾压前方' : '体型 500%，推挤更有分量', 'blue');
+        showNotice(p.id, '蛮人变大！', game.mode === 'single' ? '体型 500%，无敌碾压前方' : '体型 500%，推挤更有分量', 'blue');
         playTone({ frequency: 200, slideTo: 460, duration: 0.34, type: 'triangle', volume: 0.14 });
         return true;
       }
@@ -6128,7 +6255,7 @@
           id: 'invincible', buff: true, time: skill.duration, duration: skill.duration, charges: 0
         };
         spawnBurst(new THREE.Vector3(p.x, p.y + 2.2, p.z), skill.color, 22, 7.5, 1.0);
-        showToast('法师无敌！', '6 秒内免疫并穿过障碍与弹幕', 'blue');
+        showNotice(p.id, '法师无敌！', '6 秒内免疫并穿过障碍与弹幕', 'blue');
         playTone({ frequency: 540, slideTo: 1040, duration: 0.3, type: 'sine', volume: 0.13 });
         return true;
       }
@@ -6167,7 +6294,7 @@
       if (p.questionCharges <= 0) {
         if (game.elapsed - (p.questionHintAt || -9) > 1.2) {
           p.questionHintAt = game.elapsed;
-          showToast('没有问号道具', `沿路捡起 (?) 箱子后再按 ${p.id === 0 ? 'S' : '↓'}`, 'pink');
+          showNotice(p.id, '没有问号道具', `沿路捡起 (?) 箱子后再按 ${p.id === 0 ? 'S' : '↓'}`, 'pink');
         }
         return false;
       }
@@ -6610,7 +6737,7 @@
           applyBuff(p, choose(Object.keys(BUFF_DEFS)));
         } else {
           p.questionCharges = Math.min(3, p.questionCharges + 1);
-          showToast('捡到问号攻击！', p.id === 0 ? 'P1 按 S 发射' : 'P2 按 ↓ 发射', 'blue');
+          showNotice(p.id, '捡到问号攻击！', p.id === 0 ? 'P1 按 S 发射' : 'P2 按 ↓ 发射', 'blue');
           playSfx('pickup');
         }
       } else if (BUFF_DEFS[type]) {
@@ -6639,7 +6766,7 @@
       if (progress.complete && !run.missionComplete) {
         run.missionComplete = true;
         game.missionToastShown = true;
-        showToast('任务完成！', TASKS[run.missionId].label, 'blue');
+        showNotice(0, '任务完成！', TASKS[run.missionId].label, 'blue');
         playSfx('mission');
       }
       updateHud();
@@ -6796,7 +6923,7 @@
       dom.recovery.classList.add('visible');
       spawnBurst(new THREE.Vector3(p.x, p.y + 1.4, p.z), p.id === 0 ? 0xa8d8ff : 0xffb0b6, 16, 5.8, 0.95);
       playSfx('checkpoint');
-      showToast('两秒云回', p.id === 0 ? 'P1 回到两秒前，期间收益已回滚。' : 'P2 回到两秒前，期间收益已回滚。', 'pink');
+      showNotice(p.id, '两秒云回', p.id === 0 ? 'P1 回到两秒前，期间收益已回滚。' : 'P2 回到两秒前，期间收益已回滚。', 'pink');
       updateHud();
     }
 
@@ -6834,11 +6961,11 @@
 
     function blockPlayerNegative(p, label) {
       if (isPlayerInvincible(p)) {
-        showToast('无敌挡下了影响', label, 'blue');
+        showNotice(p.id, '无敌挡下了影响', label, 'blue');
         return true;
       }
       if (consumeShield(p)) {
-        showToast('护盾挡住了影响', label, 'blue');
+        showNotice(p.id, '护盾挡住了影响', label, 'blue');
         return true;
       }
       return false;
@@ -6874,7 +7001,7 @@
       dom.recovery.classList.add('visible');
       spawnBurst(new THREE.Vector3(p.x, p.y + 1.2, p.z), 0xffffff, 16, 5.8, 1.0);
       playSfx('checkpoint');
-      showToast('云朵接住你啦', '从最近的恢复点继续，收集物都还在。', 'pink');
+      showNotice(p.id, '云朵接住你啦', '从最近的恢复点继续，收集物都还在。', 'pink');
     }
 
     function branchRunwayFor(p) {
@@ -6957,7 +7084,7 @@
         baseSpeed *= 1.2;
         if (!run.halfShown) {
           run.halfShown = true;
-          showToast('赛程已过半', '后半程速度再提升 20%！', 'gold');
+          showNotice(0, '赛程已过半', '后半程速度再提升 20%！', 'gold');
         }
       }
       const speed = baseSpeed * speedMultiplier(p);
@@ -7414,8 +7541,15 @@
     }
 
     function updateStatusVisuals(p, model, dt) {
-      const fx = model && model.statusFx;
-      if (!fx) return;
+      if (!p.effects || Object.keys(p.effects).length === 0) {
+        hideStatusFx(model);
+        return;
+      }
+      const fx = ensureStatusFx(model);
+      if (!fx) {
+        model.statusExpiryBlink = false;
+        return;
+      }
       const groups = [
         fx.statusAuraShell, fx.statusAuraRing, fx.statusSpeedLines, fx.statusShieldOrbit,
         fx.statusJumpRings, fx.statusMagnetOrbit, fx.statusGlideClouds,
@@ -7424,8 +7558,7 @@
       groups.forEach((part) => { if (part) part.visible = false; });
       model.statusExpiryBlink = false;
       if (game.phase !== 'running' || game.paused || p.recoveryTime > 0 || p.sheepTime > 0) {
-        fx.visible = false;
-        groups.forEach((part) => { if (part) part.visible = false; });
+        hideStatusFx(model);
         return;
       }
       fx.visible = true;
@@ -8002,8 +8135,9 @@
               inkAmount: Number(inkAmountFor(p).toFixed(3)),
               character: p.model ? p.model.characterId : null,
               characterSkill: p.model ? characterSkillFor(p).name : null,
-              statusVisuals: p.model && p.model.statusFx ? {
-                visible: p.model.statusFx.visible,
+              statusVisuals: p.model ? {
+                hasStatusFx: Boolean(p.model.statusFx),
+                visible: Boolean(p.model.statusFx && p.model.statusFx.visible),
                 aura: Boolean(p.model.statusAuraShell && p.model.statusAuraShell.visible),
                 speedLines: Boolean(p.model.statusSpeedLines && p.model.statusSpeedLines.visible),
                 shield: Boolean(p.model.statusShieldOrbit && p.model.statusShieldOrbit.visible),
@@ -8217,6 +8351,7 @@
         clearEffects(playerId) {
           const p = players[clamp(Number(playerId) || 0, 0, 1)];
           p.effects = {};
+          hideStatusFx(p.model);
           return true;
         },
         setSeed(seed) {
@@ -8406,7 +8541,7 @@
             ['jump height raised', JUMP_VELOCITIES.first === 13.4 && JUMP_VELOCITIES.second === 12.3],
             ['responsive ground movement tuning', CONTROL_TUNING.groundSpeed === 24 && CONTROL_TUNING.groundAccel === 70 && CONTROL_TUNING.groundDecel === 92 && CONTROL_TUNING.groundTurnAccel === 110],
             ['approach helper', approach(0, 10, 2) === 2 && approach(10, 0, 3) === 7],
-            ['status effect rig', Boolean(players[0].model.statusFx && players[0].model.statusShieldOrbit && players[0].model.statusJumpRings)],
+            ['status fx starts clean', !players[0].model.statusFx && !players[1].model.statusFx && typeof ensureStatusFx === 'function'],
             ['split screen thresholds', SPLIT_ENTER_Z > SPLIT_EXIT_Z && SPLIT_ENTER_X > SPLIT_EXIT_X],
             ['camera shake disabled', game.shake === 0],
             ['camera look smoothing ready', Boolean(world.cameraLookBase && world.cameraLookBase2)],
