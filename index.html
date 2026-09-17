@@ -231,16 +231,27 @@
       font-weight: 750;
     }
 
-    .skin-count {
+    .skin-screen-meta {
       position: absolute;
-      left: 22px;
+      left: 18px;
       top: 18px;
+      z-index: 2;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      max-width: min(520px, calc(100vw - 36px));
+      pointer-events: none;
+    }
+
+    .skin-screen-meta span {
       padding: 7px 11px;
       border: 2px solid rgba(53,43,77,.48);
       border-radius: 999px;
-      background: rgba(255,255,255,.62);
+      background: rgba(255,255,255,.78);
+      box-shadow: 0 4px 12px rgba(63,43,82,.12);
       font-size: 13px;
       font-weight: 900;
+      white-space: nowrap;
     }
 
     .control-hint {
@@ -1164,8 +1175,12 @@
     </section>
 
     <section id="skinScreen" class="screen">
+      <div class="skin-screen-meta" aria-label="选角信息">
+        <span id="skinUnlockedCount">已解锁 1/4</span>
+        <span id="skinCoinCount">金币 0</span>
+        <span id="skinControlHint">A / D 或 ← / →</span>
+      </div>
       <div class="glass">
-        <div class="skin-count"><span id="skinUnlockedCount">P1 / 1</span></div>
         <div class="eyebrow">选择你的角色</div>
         <div id="skinName" class="skin-name">骑士</div>
         <div id="skinCondition" class="skin-condition"></div>
@@ -1218,7 +1233,7 @@
         <div id="resultGrid2" class="result-grid"></div>
         <div id="unlockMessage" class="subtitle"></div>
         <div class="button-row">
-          <button id="runAgainBtn" class="btn primary" type="button">再跑一局</button>
+          <button id="runAgainBtn" class="btn primary" type="button">重回梦境</button>
           <button id="changeHatBtn" class="btn ghost" type="button">换角色</button>
           <button id="titleBtn" class="btn ghost" type="button">返回标题</button>
         </div>
@@ -1341,6 +1356,8 @@
       skinName: document.getElementById('skinName'),
       skinCondition: document.getElementById('skinCondition'),
       skinUnlockedCount: document.getElementById('skinUnlockedCount'),
+      skinCoinCount: document.getElementById('skinCoinCount'),
+      skinControlHint: document.getElementById('skinControlHint'),
       skinUpgrade: document.getElementById('skinUpgradeBtn'),
       skinConfirm: document.getElementById('skinConfirmBtn'),
       skinBack: document.getElementById('skinBackBtn'),
@@ -1422,6 +1439,7 @@
     };
 
     const LEVEL = {
+      startExtension: 48,
       endZ: 6300,
       sampleStep: 7,
       minSpeed: 24,
@@ -1583,6 +1601,7 @@
     const SPLIT_EXIT_Z = 38;
     const SPLIT_ENTER_X = 18;
     const SPLIT_EXIT_X = 14;
+    const CAMERA_FOLLOW_MAX_LAG = 0.6;
 
     const BUFF_DEFS = {
       invincible: { name: '无敌', short: '无敌', duration: 6, color: '#ffd166' },
@@ -2215,6 +2234,7 @@
       shake: 0,
       splitScreen: false,
       splitCooldown: 0,
+      cameraSnap: true,
       modelsLoaded: false,
       characterPick: { step: 0, count: 1, menuOnly: false },
       difficulty: savedState.settings.difficulty,
@@ -2956,12 +2976,12 @@
       const positions = [];
       const indices = [];
       let row = 0;
-      for (let z = 0; z <= LEVEL.endZ; z += LEVEL.sampleStep) {
+      for (let z = -LEVEL.startExtension; z <= LEVEL.endZ; z += LEVEL.sampleStep) {
         const x = centerX(z);
         const half = pathHalfWidth(z);
         const y = pathY(z) + yOffset;
         positions.push(x - half, y, z, x + half, y, z);
-        if (z > 0) {
+        if (row > 0) {
           const a = (row - 1) * 2;
           const b = a + 1;
           const c = row * 2;
@@ -2981,11 +3001,11 @@
       const positions = [];
       const indices = [];
       let row = 0;
-      for (let z = 0; z <= LEVEL.endZ; z += LEVEL.sampleStep) {
+      for (let z = -LEVEL.startExtension; z <= LEVEL.endZ; z += LEVEL.sampleStep) {
         const x = centerX(z) + side * pathHalfWidth(z);
         const y = pathY(z);
         positions.push(x, y, z, x, y - 1.35, z);
-        if (z > 0) {
+        if (row > 0) {
           const a = (row - 1) * 2;
           const b = a + 1;
           const c = row * 2;
@@ -3006,11 +3026,11 @@
       const positions = [];
       const indices = [];
       let row = 0;
-      for (let z = 0; z <= LEVEL.endZ; z += LEVEL.sampleStep) {
+      for (let z = -LEVEL.startExtension; z <= LEVEL.endZ; z += LEVEL.sampleStep) {
         const x = centerX(z) + side * (pathHalfWidth(z) - 0.55);
         const y = pathY(z) + 0.075;
         positions.push(x - 0.28, y, z, x + 0.28, y, z);
-        if (z > 0) {
+        if (row > 0) {
           const a = (row - 1) * 2;
           const b = a + 1;
           const c = row * 2;
@@ -3552,7 +3572,7 @@
       for (const branch of world.branches) consider(branch);
       for (const pad of world.cloudPads) consider(pad);
       const half = pathHalfWidth(z);
-      if (z >= -3 && z <= LEVEL.endZ + 6 && Math.abs(x - centerX(z)) <= half) {
+      if (z >= -LEVEL.startExtension && z <= LEVEL.endZ + 6 && Math.abs(x - centerX(z)) <= half) {
         const mainY = pathY(z);
         if (mainY <= maxSurfaceY + 0.5) {
           surface = surface === null ? mainY : Math.max(surface, mainY);
@@ -4269,6 +4289,7 @@
         menuOnly: !launch,
         selected: { 0: selectedCharacterId(0), 1: selectedCharacterId(1) }
       };
+      game.cameraSnap = true;
       inputs.forEach((item) => { item.left = false; item.right = false; item.jumpQueued = false; });
       setPhase('skins');
       updateCharacterPreview(true);
@@ -4366,7 +4387,9 @@
       }
       if (dom.skinUnlockedCount) {
         const unlockedCount = CHARACTER_DEFS.filter((def) => isCharacterUnlocked(def.id)).length;
-        dom.skinUnlockedCount.textContent = `已解锁 ${unlockedCount}/${CHARACTER_DEFS.length} · 金币 ${savedState.stats.totalCoins} · ${pick.count > 1 ? 'P1：A / D　P2：← / →' : 'A / D 或 ← / →'}`;
+        dom.skinUnlockedCount.textContent = `已解锁 ${unlockedCount}/${CHARACTER_DEFS.length}`;
+        if (dom.skinCoinCount) dom.skinCoinCount.textContent = `金币 ${savedState.stats.totalCoins}`;
+        if (dom.skinControlHint) dom.skinControlHint.textContent = pick.count > 1 ? 'P1：A / D　P2：← / →' : 'A / D 或 ← / →';
       }
       if (dom.skinUpgrade) dom.skinUpgrade.style.display = pick.menuOnly ? '' : 'none';
       const eyebrow = document.querySelector('#skinScreen .eyebrow');
@@ -4396,9 +4419,9 @@
           const visible = duo || index === 0;
           model.root.visible = visible;
           if (!visible) return;
-          const offset = duo ? (index === 0 ? -2.2 : 2.2) : 0;
+          const offset = duo ? (index === 0 ? 3.2 : -3.2) : 0;
           model.root.position.set(centerX(28) + offset, pathY(28), 28);
-          model.root.rotation.set(0, game.previewAngle + (duo ? (index === 0 ? 0.35 : -0.35) : 0), 0);
+          model.root.rotation.set(0, game.previewAngle + (duo ? (index === 0 ? 0.32 : -0.32) : 0), 0);
           if (immediate) {
             model.visual.scale.set(1, 1, 1);
             model.visual.rotation.set(0, 0, 0);
@@ -5691,6 +5714,7 @@
       game.historyTimer = 0;
       game.splitCooldown = 0;
       game.shake = 0;
+      game.cameraSnap = true;
       clearProjectiles();
       clearPowerProjectiles();
       clearSlashEffects();
@@ -5761,6 +5785,7 @@
     function startRunning() {
       run.active = true;
       game.elapsed = 0;
+      game.cameraSnap = true;
       world.lastCameraPosition = null;
       world.lastCameraLook = null;
       setPhase('running');
@@ -5772,6 +5797,7 @@
     function returnToTitle() {
       game.paused = false;
       game.shake = 0;
+      game.cameraSnap = true;
       clearNotices();
       setSplitScreen(false);
       clearProjectiles();
@@ -7097,6 +7123,7 @@
 
     function beginRecovery(p) {
       game.shake = 0;
+      game.cameraSnap = true;
       if (p.sheepTime > 0) endSheep(p);
       if (p.recoveryTime > 0 || !p.active) return;
       p.fellCount += 1;
@@ -7611,7 +7638,7 @@
       if (game.mode === 'single' && run.gameOver) {
         dom.resultEyebrow.textContent = '挑战失败';
         dom.ratingBadge.textContent = '×';
-        dom.resultMessage.textContent = '心已耗尽，梦途暂时中断。';
+        dom.resultMessage.textContent = '梦境暂时中断，你醒了。';
         dom.resultTask.textContent = '本局已结算当前获得的金币和星币。';
         dom.resultStars.textContent = String(run.stars);
         dom.resultCoins.textContent = String(run.coins);
@@ -7712,7 +7739,7 @@
       if (previewing) {
         model.visual.visible = true;
         const selecting = game.phase === 'skins' || game.phase === 'upgrade';
-        const offset = duoCharacterPreview ? (p.id === 0 ? -2.2 : 2.2) : 0;
+        const offset = duoCharacterPreview ? (p.id === 0 ? 3.2 : -3.2) : 0;
         if (selecting) {
           const yaw = Math.PI + (duoCharacterPreview ? (p.id === 0 ? 0.32 : -0.32) : 0.26);
           model.root.position.set(centerX(28) + offset, pathY(28), 28);
@@ -7870,7 +7897,25 @@
       return { x: dx / length, z: 4 / length };
     }
 
-    function updateFollowCamera(cam, p, desired, look, dt, fov, base, lookBase) {
+    function followCameraPosition(base, target, dt, snap = false) {
+      if (!base || !target) return;
+      if (snap) {
+        base.copy(target);
+        world.cameraFollowLag = 0;
+        return;
+      }
+      base.lerp(target, 1 - Math.exp(-20 * dt));
+      const distance = base.distanceTo(target);
+      if (distance > CAMERA_FOLLOW_MAX_LAG) {
+        base.lerp(target, 1 - CAMERA_FOLLOW_MAX_LAG / distance);
+      }
+      world.cameraFollowLag = Math.max(
+        world.cameraFollowLag || 0,
+        Math.min(base.distanceTo(target), CAMERA_FOLLOW_MAX_LAG)
+      );
+    }
+
+    function updateFollowCamera(cam, p, desired, look, dt, fov, base, lookBase, snap = false) {
       if (!cam || !desired || !look) return;
       const speedFactor = cameraSpeedFactor(p);
       const groundY = surfaceYAt(p.x, p.z) ?? pathY(p.z);
@@ -7886,7 +7931,7 @@
       );
       look.set(p.x + forward.x * lookAhead, anchorY + 2.3, p.z + forward.z * lookAhead);
       if (!base) return;
-      base.copy(desired);
+      followCameraPosition(base, desired, dt, snap);
       if (!lookBase) return;
       lookBase.copy(look);
       cam.position.copy(base);
@@ -7928,6 +7973,9 @@
 
     function updateCamera(dt) {
       if (!camera) return;
+      const snapCamera = Boolean(game.cameraSnap);
+      game.cameraSnap = false;
+      world.cameraFollowLag = 0;
       if (!world.cameraDesired) world.cameraDesired = new THREE.Vector3();
       if (!world.cameraLook) world.cameraLook = new THREE.Vector3();
       if (!world.cameraDesired2) world.cameraDesired2 = new THREE.Vector3();
@@ -7960,18 +8008,20 @@
           world.cameraLook.set(centerX(z), pathY(z) + 2.2, z + 0.2);
           camera.fov = 50;
         }
-        moveCameraTowards(world.cameraBase, world.cameraDesired, factor, dt);
+        if (snapCamera) world.cameraBase.copy(world.cameraDesired);
+        else moveCameraTowards(world.cameraBase, world.cameraDesired, factor, dt);
         camera.position.copy(world.cameraBase);
         game.shake = 0;
-        moveCameraTowards(world.cameraLookBase, world.cameraLook, 1 - Math.exp(-dt * 4.5), dt, 220);
+        if (snapCamera) world.cameraLookBase.copy(world.cameraLook);
+        else moveCameraTowards(world.cameraLookBase, world.cameraLook, 1 - Math.exp(-dt * 4.5), dt, 220);
         camera.lookAt(world.cameraLookBase);
         camera.updateProjectionMatrix();
         recordCameraMotion();
         return;
       }
       if (game.mode === 'duo' && game.splitScreen) {
-        updateFollowCamera(camera, players[0], world.cameraDesired, world.cameraLook, dt, 62, world.cameraBase, world.cameraLookBase);
-        updateFollowCamera(camera2, players[1], world.cameraDesired2, world.cameraLook2, dt, 62, world.cameraBase2, world.cameraLookBase2);
+        updateFollowCamera(camera, players[0], world.cameraDesired, world.cameraLook, dt, 62, world.cameraBase, world.cameraLookBase, snapCamera);
+        updateFollowCamera(camera2, players[1], world.cameraDesired2, world.cameraLook2, dt, 62, world.cameraBase2, world.cameraLookBase2, snapCamera);
         game.shake = 0;
         recordCameraMotion();
         return;
@@ -7994,12 +8044,12 @@
         const lookAhead = 10 + speedFactor * 4;
         world.cameraDesired.set(midX - forward.x * distance, anchorY + 7.8 + clamp(separation * 0.01, 0, 2), midZ - forward.z * distance);
         world.cameraLook.set(midX + forward.x * lookAhead, anchorY + 2.4, midZ + forward.z * lookAhead);
-        world.cameraBase.copy(world.cameraDesired);
+        followCameraPosition(world.cameraBase, world.cameraDesired, dt, snapCamera);
         world.cameraLookBase.copy(world.cameraLook);
         camera.position.copy(world.cameraBase);
         camera.fov = lerp(camera.fov, 60 + clamp(separation * 0.025, 0, 7) + speedFactor * 8 + boostPov, factor);
       } else {
-        updateFollowCamera(camera, player, world.cameraDesired, world.cameraLook, dt, 58, world.cameraBase, world.cameraLookBase);
+        updateFollowCamera(camera, player, world.cameraDesired, world.cameraLook, dt, 58, world.cameraBase, world.cameraLookBase, snapCamera);
         game.shake = 0;
         recordCameraMotion();
         return;
@@ -8230,6 +8280,7 @@
             cameraHeight: camera ? camera.position.y - player.y : null,
             cameraDelta: world.cameraDelta || 0,
             cameraLookDelta: world.cameraLookDelta || 0,
+            cameraFollowLag: world.cameraFollowLag || 0,
             cameraFov: camera ? camera.fov : null,
             splitCooldown: game.splitCooldown || 0,
             speedPov: cameraSpeedFactor(player),
@@ -8633,6 +8684,8 @@
             ['responsive ground movement tuning', CONTROL_TUNING.groundSpeed === 24 && CONTROL_TUNING.groundAccel === 70 && CONTROL_TUNING.groundDecel === 92 && CONTROL_TUNING.groundTurnAccel === 110],
             ['approach helper', approach(0, 10, 2) === 2 && approach(10, 0, 3) === 7],
             ['split screen thresholds', SPLIT_ENTER_Z > SPLIT_EXIT_Z && SPLIT_ENTER_X > SPLIT_EXIT_X],
+            ['camera follow lag bounded', CAMERA_FOLLOW_MAX_LAG === 0.6],
+            ['start track extended', LEVEL.startExtension === 48 && surfaceYAt(centerX(-20), -20) === pathY(-20)],
             ['camera shake disabled', game.shake === 0],
             ['camera look smoothing ready', Boolean(world.cameraLookBase && world.cameraLookBase2)],
             ['split screen cooldown ready', typeof game.splitCooldown === 'number' && game.splitCooldown >= 0],
