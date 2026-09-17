@@ -2007,6 +2007,7 @@
       pendingCharacterReturn: false,
       shake: 0,
       splitScreen: false,
+      splitCooldown: 0,
       modelsLoaded: false,
       characterPick: { step: 0, count: 1, menuOnly: false },
       difficulty: savedState.settings.difficulty,
@@ -5442,6 +5443,7 @@
       game.starRewardSettled = false;
       game.competitiveStarReward = 0;
       game.historyTimer = 0;
+      game.splitCooldown = 0;
       game.shake = 0;
       clearProjectiles();
       clearPowerProjectiles();
@@ -7219,7 +7221,7 @@
 
       a.collisionCooldown = 0.28;
       b.collisionCooldown = 0.28;
-      game.shake = Math.min(0.04, Math.max(game.shake || 0, 0.018 + Math.min(0.022, relSpeed * 0.002)));
+      game.shake = 0;
       spawnBurst(new THREE.Vector3((a.x + b.x) * 0.5, p_center_y(a, b), (a.z + b.z) * 0.5), 0xfff0a6, 8, 5.0, 0.5);
       playTone({ frequency: 170, slideTo: 360, duration: 0.16, type: 'triangle', volume: 0.11 });
     }
@@ -7679,16 +7681,21 @@
       if (next) {
         if (world.cameraBase && camera) world.cameraBase.copy(camera.position);
         if (world.cameraBase2 && camera) world.cameraBase2.copy(camera.position);
+        if (world.cameraLookBase) world.cameraLookBase.copy(world.cameraLook || camera.position);
+        if (world.cameraLookBase2) world.cameraLookBase2.copy(world.cameraLook || camera.position);
       }
+      game.splitCooldown = 0.8;
       if (dom.splitDivider) dom.splitDivider.classList.toggle('visible', next);
       updateCameraAspects();
     }
 
-    function updateSplitScreenState() {
+    function updateSplitScreenState(dt = 0) {
+      game.splitCooldown = Math.max(0, (game.splitCooldown || 0) - dt);
       if (game.mode !== 'duo') {
         setSplitScreen(false);
         return;
       }
+      if (game.splitCooldown > 0) return;
       const a = players[0];
       const b = players[1];
       const dz = Math.abs(a.z - b.z);
@@ -7697,32 +7704,38 @@
       else if (game.splitScreen && dz < SPLIT_EXIT_Z && dx < SPLIT_EXIT_X) setSplitScreen(false);
     }
 
-    function updateFollowCamera(cam, p, desired, look, dt, fov, base) {
+    function updateFollowCamera(cam, p, desired, look, dt, fov, base, lookBase) {
       if (!cam || !desired || !look) return;
       desired.set(
         p.x * 0.52 + centerX(p.z) * 0.48,
-        p.y + 7.3 + clamp(p.vy * 0.09, -0.8, 1.5),
+        p.y + 7.3 + clamp(p.vy * 0.035, -0.2, 0.2),
         p.z - 13.5
       );
       look.set(p.x * 0.6 + centerX(p.z) * 0.4, p.y + 2.3, p.z + 9.5);
-      const factor = 1 - Math.exp(-dt * 6.5);
+      const factor = 1 - Math.exp(-dt * 5.5);
       if (!base) return;
       base.lerp(desired, factor);
+      if (!lookBase) return;
+      lookBase.lerp(look, 1 - Math.exp(-dt * 4.5));
       cam.position.copy(base);
-      cam.fov = fov;
-      cam.lookAt(look);
+      cam.fov = lerp(cam.fov, fov, 1 - Math.exp(-dt * 4));
+      cam.lookAt(lookBase);
       cam.updateProjectionMatrix();
     }
 
-    function applyCameraShake(cam, base, amplitude) {
-      if (!cam || !base) return;
-      cam.position.copy(base);
-      const shake = clamp(amplitude || 0, 0, 0.08);
-      if (shake <= 0) return;
-      const phase = game.elapsed * 34;
-      cam.position.x += Math.sin(phase * 1.37) * shake;
-      cam.position.y += Math.sin(phase * 1.91 + 1.2) * shake * 0.7;
-      cam.position.z += Math.sin(phase * 1.13 + 2.4) * shake * 0.35;
+    function recordCameraMotion() {
+      if (!camera) return;
+      if (!world.lastCameraPosition) {
+        world.lastCameraPosition = camera.position.clone();
+        world.lastCameraLook = world.cameraLookBase ? world.cameraLookBase.clone() : camera.position.clone();
+        world.cameraDelta = 0;
+        world.cameraLookDelta = 0;
+        return;
+      }
+      world.cameraDelta = camera.position.distanceTo(world.lastCameraPosition);
+      world.cameraLookDelta = world.cameraLookBase ? world.cameraLookBase.distanceTo(world.lastCameraLook) : 0;
+      world.lastCameraPosition.copy(camera.position);
+      if (world.cameraLookBase) world.lastCameraLook.copy(world.cameraLookBase);
     }
 
     function updateCamera(dt) {
@@ -7733,6 +7746,14 @@
       if (!world.cameraLook2) world.cameraLook2 = new THREE.Vector3();
       if (!world.cameraBase) world.cameraBase = camera.position.clone();
       if (!world.cameraBase2) world.cameraBase2 = camera2 ? camera2.position.clone() : new THREE.Vector3();
+      if (!world.cameraLookBase) {
+        world.cameraLookBase = new THREE.Vector3();
+        camera.getWorldDirection(world.cameraLookBase).multiplyScalar(10).add(camera.position);
+      }
+      if (!world.cameraLookBase2) {
+        world.cameraLookBase2 = new THREE.Vector3();
+        (camera2 || camera).getWorldDirection(world.cameraLookBase2).multiplyScalar(10).add((camera2 || camera).position);
+      }
       const factor = 1 - Math.exp(-dt * 6.5);
       if (game.phase === 'title' || game.phase === 'skins' || game.phase === 'upgrade') {
         const z = 28;
@@ -7754,16 +7775,17 @@
         world.cameraBase.lerp(world.cameraDesired, factor);
         camera.position.copy(world.cameraBase);
         game.shake = 0;
-        camera.lookAt(world.cameraLook);
+        world.cameraLookBase.lerp(world.cameraLook, 1 - Math.exp(-dt * 4.5));
+        camera.lookAt(world.cameraLookBase);
         camera.updateProjectionMatrix();
+        recordCameraMotion();
         return;
       }
       if (game.mode === 'duo' && game.splitScreen) {
-        updateFollowCamera(camera, players[0], world.cameraDesired, world.cameraLook, dt, 62, world.cameraBase);
-        updateFollowCamera(camera2, players[1], world.cameraDesired2, world.cameraLook2, dt, 62, world.cameraBase2);
-        applyCameraShake(camera, world.cameraBase, game.shake);
-        applyCameraShake(camera2, world.cameraBase2, game.shake);
-        game.shake = Math.max(0, game.shake - dt * 1.4);
+        updateFollowCamera(camera, players[0], world.cameraDesired, world.cameraLook, dt, 62, world.cameraBase, world.cameraLookBase);
+        updateFollowCamera(camera2, players[1], world.cameraDesired2, world.cameraLook2, dt, 62, world.cameraBase2, world.cameraLookBase2);
+        game.shake = 0;
+        recordCameraMotion();
         return;
       }
       if (game.mode === 'duo') {
@@ -7776,17 +7798,19 @@
         const distance = 14.5 + clamp(separation * 0.045, 0, 5.5);
         world.cameraDesired.set(midX, midY + 7.6 + clamp(separation * 0.01, 0, 2), midZ - distance);
         world.cameraLook.set(midX, midY + 2.4, midZ + 10 + separation * 0.02);
-        camera.fov = 60 + clamp(separation * 0.025, 0, 7);
+        camera.fov = lerp(camera.fov, 60 + clamp(separation * 0.025, 0, 7), factor);
       } else {
-        world.cameraDesired.set(player.x * 0.52 + centerX(player.z) * 0.48, player.y + 7.3 + clamp(player.vy * 0.09, -0.8, 1.5), player.z - 13.5);
+        world.cameraDesired.set(player.x * 0.52 + centerX(player.z) * 0.48, player.y + 7.3 + clamp(player.vy * 0.035, -0.2, 0.2), player.z - 13.5);
         world.cameraLook.set(player.x * 0.6 + centerX(player.z) * 0.4, player.y + 2.3, player.z + 9.5);
-        camera.fov = 58 + clamp((player.z / LEVEL.endZ) * 4, 0, 4);
+        camera.fov = lerp(camera.fov, 58 + clamp((player.z / LEVEL.endZ) * 4, 0, 4), factor);
       }
       world.cameraBase.lerp(world.cameraDesired, factor);
-      applyCameraShake(camera, world.cameraBase, game.shake);
-      game.shake = Math.max(0, game.shake - dt * 1.4);
-      camera.lookAt(world.cameraLook);
+      camera.position.copy(world.cameraBase);
+      world.cameraLookBase.lerp(world.cameraLook, 1 - Math.exp(-dt * 4.5));
+      camera.lookAt(world.cameraLookBase);
+      game.shake = 0;
       camera.updateProjectionMatrix();
+      recordCameraMotion();
     }
 
     function updateWorldVisuals(dt) {
@@ -7887,7 +7911,7 @@
       }
 
       updateWorldVisuals(game.paused ? 0 : dt);
-      updateSplitScreenState();
+      updateSplitScreenState(dt);
       game.hudTimer = (game.hudTimer || 0) + dt;
       if (game.hudTimer >= 0.1) {
         game.hudTimer = 0;
@@ -8007,6 +8031,11 @@
             modelsLoaded: game.modelsLoaded,
             splitScreen: game.splitScreen,
             net: { role: NET.role, room: NET.room, connected: NET.connected, peer: NET.peer, started: NET.started },
+            cameraPosition: camera ? { x: camera.position.x, y: camera.position.y, z: camera.position.z } : null,
+            cameraLookTarget: world.cameraLookBase ? { x: world.cameraLookBase.x, y: world.cameraLookBase.y, z: world.cameraLookBase.z } : null,
+            cameraDelta: world.cameraDelta || 0,
+            cameraLookDelta: world.cameraLookDelta || 0,
+            splitCooldown: game.splitCooldown || 0,
             questionProjectiles: world.projectiles.length,
             questionProjectileInfo: world.projectiles.map((projectile) => ({
               ownerId: projectile.userData.ownerId,
@@ -8227,9 +8256,9 @@
           createPowerItem(world.powerups.length, 'question', centerX(targetZ), pathY(targetZ) + 1.25, targetZ, zone);
           return true;
         },
-        setCameraShake(amount = 0.3) {
-          game.shake = clamp(Number(amount) || 0, 0, 0.08);
-          return true;
+        setCameraShake() {
+          game.shake = 0;
+          return 0;
         },
         setCharacter(playerId, id) {
           const def = characterDef(id);
@@ -8379,6 +8408,9 @@
             ['approach helper', approach(0, 10, 2) === 2 && approach(10, 0, 3) === 7],
             ['status effect rig', Boolean(players[0].model.statusFx && players[0].model.statusShieldOrbit && players[0].model.statusJumpRings)],
             ['split screen thresholds', SPLIT_ENTER_Z > SPLIT_EXIT_Z && SPLIT_ENTER_X > SPLIT_EXIT_X],
+            ['camera shake disabled', game.shake === 0],
+            ['camera look smoothing ready', Boolean(world.cameraLookBase && world.cameraLookBase2)],
+            ['split screen cooldown ready', typeof game.splitCooldown === 'number' && game.splitCooldown >= 0],
             ['trap cap documented', Object.keys(TRAP_DEFS).length <= 4],
             ['storage normalization', normalizeStats({ totalStars: -2 }).totalStars === 0],
             ['star coin migration', normalizeStats({ totalStars: 88 }).starCoins === 88],
