@@ -2403,7 +2403,7 @@
       const model = p && p.model;
       if (!model || !model.visual) return;
       model.visual.children.forEach((child) => {
-        if (child === model.gltfRoot || child === model.statusFx) return;
+        if (child === model.gltfRoot) return;
         child.visible = visible;
       });
     }
@@ -3156,169 +3156,6 @@
       updatePlayerLabels();
     }
 
-    function createStatusFx() {
-      const group = new THREE.Group();
-      group.name = 'statusFx';
-      const auraShell = new THREE.Mesh(
-        cachedGeometry('statusAuraShell', () => new THREE.IcosahedronGeometry(1, 2)),
-        new THREE.MeshBasicMaterial({
-          color: 0xffd166, transparent: true, opacity: 0, depthWrite: false,
-          blending: THREE.AdditiveBlending, side: THREE.DoubleSide
-        })
-      );
-      auraShell.name = 'statusAuraShell';
-      auraShell.position.y = 1.55;
-      auraShell.scale.set(1.45, 1.9, 1.45);
-      group.add(auraShell);
-
-      const auraRing = new THREE.Mesh(
-        cachedGeometry('statusAuraRing', () => new THREE.TorusGeometry(1.18, 0.075, 6, 28)),
-        new THREE.MeshBasicMaterial({ color: 0xffd166, transparent: true, opacity: 0.7, depthWrite: false, blending: THREE.AdditiveBlending })
-      );
-      auraRing.name = 'statusAuraRing';
-      auraRing.rotation.x = Math.PI / 2;
-      auraRing.position.y = 1.0;
-      group.add(auraRing);
-
-      const speedLines = new THREE.Group();
-      speedLines.name = 'statusSpeedLines';
-      const speedLineGeometry = cachedGeometry('statusSpeedLine', () => new THREE.BoxGeometry(0.045, 0.045, 1.55));
-      for (let i = 0; i < 3; i += 1) {
-        const line = new THREE.Mesh(speedLineGeometry, new THREE.MeshBasicMaterial({ color: 0x9de0c1, transparent: true, opacity: 0.72, depthWrite: false, blending: THREE.AdditiveBlending }));
-        line.position.set((i - 1) * 0.32, 0.35 + i * 0.38, -0.92);
-        speedLines.add(line);
-      }
-      group.add(speedLines);
-
-      const shieldOrbit = new THREE.Group();
-      shieldOrbit.name = 'statusShieldOrbit';
-      const shieldGeometry = cachedGeometry('statusShieldPlate', () => new THREE.TorusGeometry(0.42, 0.08, 6, 16));
-      const shieldMaterial = new THREE.MeshBasicMaterial({ color: 0xffe6a6, transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending });
-      for (let i = 0; i < 3; i += 1) {
-        const shield = new THREE.Mesh(shieldGeometry, shieldMaterial.clone());
-        shield.name = `statusShield${i}`;
-        shield.position.set(Math.cos(i / 3 * Math.PI * 2) * 1.35, 1.35, Math.sin(i / 3 * Math.PI * 2) * 1.35);
-        shield.rotation.y = i / 3 * Math.PI * 2;
-        shield.scale.set(0.78, 1.2, 0.78);
-        shieldOrbit.add(shield);
-      }
-      group.add(shieldOrbit);
-
-      const jumpRings = new THREE.Group();
-      jumpRings.name = 'statusJumpRings';
-      const jumpRingGeometry = cachedGeometry('statusJumpRing', () => new THREE.TorusGeometry(0.44, 0.055, 5, 18));
-      for (let i = 0; i < 3; i += 1) {
-        const ring = new THREE.Mesh(jumpRingGeometry, new THREE.MeshBasicMaterial({ color: 0xc5b8f5, transparent: true, opacity: 0.85, depthWrite: false, blending: THREE.AdditiveBlending }));
-        ring.name = `statusJumpRing${i}`;
-        ring.rotation.x = Math.PI / 2;
-        ring.position.set((i - 1) * 0.42, 3.0 + i * 0.28, 0);
-        jumpRings.add(ring);
-      }
-      group.add(jumpRings);
-
-      const magnetOrbit = new THREE.Group();
-      magnetOrbit.name = 'statusMagnetOrbit';
-      const starGeometry = cachedGeometry('statusStarOrbit', () => new THREE.OctahedronGeometry(0.14, 0));
-      for (let i = 0; i < 4; i += 1) {
-        const star = new THREE.Mesh(starGeometry, new THREE.MeshBasicMaterial({ color: 0xffd6ec, transparent: true, opacity: 0.85, depthWrite: false, blending: THREE.AdditiveBlending }));
-        magnetOrbit.add(star);
-      }
-      group.add(magnetOrbit);
-
-      const glideClouds = new THREE.Group();
-      glideClouds.name = 'statusGlideClouds';
-      const cloudGeometry = cachedGeometry('statusGlideCloud', () => new THREE.SphereGeometry(0.34, 8, 6));
-      const cloudMaterial = new THREE.MeshBasicMaterial({ color: 0xa8d8ff, transparent: true, opacity: 0.68, depthWrite: false });
-      for (let i = 0; i < 3; i += 1) {
-        const puff = new THREE.Mesh(cloudGeometry, cloudMaterial);
-        puff.position.set((i - 1) * 0.48, 0.12, 0.18 - Math.abs(i - 1) * 0.12);
-        puff.scale.set(1.35, 0.58, 0.85);
-        glideClouds.add(puff);
-      }
-      group.add(glideClouds);
-
-      const bananaDrops = new THREE.Group();
-      bananaDrops.name = 'statusBananaDrops';
-      for (let i = 0; i < 3; i += 1) {
-        const drop = new THREE.Mesh(
-          cachedGeometry('statusBananaDrop', () => new THREE.SphereGeometry(0.12, 7, 5)),
-          new THREE.MeshBasicMaterial({ color: 0xffd166, transparent: true, opacity: 0.82, depthWrite: false })
-        );
-        drop.position.set((i - 1) * 0.5, 0.18, -0.45 - i * 0.16);
-        bananaDrops.add(drop);
-      }
-      group.add(bananaDrops);
-
-      const reverseArrows = new THREE.Group();
-      reverseArrows.name = 'statusReverseArrows';
-      const arrowGeometry = cachedGeometry('statusReverseArrow', () => new THREE.ConeGeometry(0.16, 0.48, 7));
-      for (let i = 0; i < 3; i += 1) {
-        const arrow = new THREE.Mesh(arrowGeometry, new THREE.MeshBasicMaterial({ color: 0xc5b8f5, transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending }));
-        arrow.position.set((i - 1) * 0.58, 2.35, 0);
-        arrow.rotation.z = i % 2 === 0 ? Math.PI / 2 : -Math.PI / 2;
-        reverseArrows.add(arrow);
-      }
-      group.add(reverseArrows);
-
-      const inkWisps = new THREE.Group();
-      inkWisps.name = 'statusInkWisps';
-      for (let i = 0; i < 4; i += 1) {
-        const wisp = new THREE.Mesh(
-          cachedGeometry('statusInkWisp', () => new THREE.SphereGeometry(0.32, 7, 5)),
-          new THREE.MeshBasicMaterial({ color: 0x21162f, transparent: true, opacity: 0.72, depthWrite: false })
-        );
-        inkWisps.add(wisp);
-      }
-      group.add(inkWisps);
-
-      group.visible = false;
-      group.traverse((object) => {
-        if (object !== group) object.visible = false;
-      });
-      return group;
-    }
-
-    function ensureStatusFx(model) {
-      if (!model || !model.visual) return null;
-      if (model.statusFx) return model.statusFx;
-      const fx = createStatusFx();
-      model.visual.add(fx);
-      model.statusFx = fx;
-      fx.statusAuraShell = fx.getObjectByName('statusAuraShell');
-      fx.statusAuraRing = fx.getObjectByName('statusAuraRing');
-      fx.statusSpeedLines = fx.getObjectByName('statusSpeedLines');
-      fx.statusShieldOrbit = fx.getObjectByName('statusShieldOrbit');
-      fx.statusJumpRings = fx.getObjectByName('statusJumpRings');
-      fx.statusMagnetOrbit = fx.getObjectByName('statusMagnetOrbit');
-      fx.statusGlideClouds = fx.getObjectByName('statusGlideClouds');
-      fx.statusBananaDrops = fx.getObjectByName('statusBananaDrops');
-      fx.statusReverseArrows = fx.getObjectByName('statusReverseArrows');
-      fx.statusInkWisps = fx.getObjectByName('statusInkWisps');
-      model.statusAuraShell = fx.statusAuraShell;
-      model.statusAuraRing = fx.statusAuraRing;
-      model.statusSpeedLines = fx.statusSpeedLines;
-      model.statusShieldOrbit = fx.statusShieldOrbit;
-      model.statusJumpRings = fx.statusJumpRings;
-      model.statusMagnetOrbit = fx.statusMagnetOrbit;
-      model.statusGlideClouds = fx.statusGlideClouds;
-      model.statusBananaDrops = fx.statusBananaDrops;
-      model.statusReverseArrows = fx.statusReverseArrows;
-      model.statusInkWisps = fx.statusInkWisps;
-      return fx;
-    }
-
-    function hideStatusFx(model) {
-      if (!model || !model.statusFx) return;
-      model.statusFx.visible = false;
-      [
-        model.statusAuraShell, model.statusAuraRing, model.statusSpeedLines,
-        model.statusShieldOrbit, model.statusJumpRings, model.statusMagnetOrbit,
-        model.statusGlideClouds, model.statusBananaDrops, model.statusReverseArrows,
-        model.statusInkWisps
-      ].forEach((part) => { if (part) part.visible = false; });
-      model.statusExpiryBlink = false;
-    }
-
     function createSheepShell() {
       const group = new THREE.Group();
       group.name = 'sheepShell';
@@ -3390,17 +3227,6 @@
         rightArm: root.getObjectByName('rightArm'),
         balloonShell: root.getObjectByName('balloonShell'),
         sheepShell: root.getObjectByName('sheepShell'),
-        statusFx: root.getObjectByName('statusFx'),
-        statusAuraShell: root.getObjectByName('statusAuraShell'),
-        statusAuraRing: root.getObjectByName('statusAuraRing'),
-        statusSpeedLines: root.getObjectByName('statusSpeedLines'),
-        statusShieldOrbit: root.getObjectByName('statusShieldOrbit'),
-        statusJumpRings: root.getObjectByName('statusJumpRings'),
-        statusMagnetOrbit: root.getObjectByName('statusMagnetOrbit'),
-        statusGlideClouds: root.getObjectByName('statusGlideClouds'),
-        statusBananaDrops: root.getObjectByName('statusBananaDrops'),
-        statusReverseArrows: root.getObjectByName('statusReverseArrows'),
-        statusInkWisps: root.getObjectByName('statusInkWisps'),
         label: root.getObjectByName('playerLabel'),
         gltfRoot: null,
         gltfMixer: null,
@@ -3417,9 +3243,6 @@
       scene.add(clone);
       clone.traverse((object) => {
         if (!object.isMesh) return;
-        if (object.parent && String(object.parent.name).startsWith('status') && object.material) {
-          object.material = Array.isArray(object.material) ? object.material.map((item) => item.clone()) : object.material.clone();
-        }
         if (object.userData.isOutline) return;
         if (object.userData.part === 'body' || object.userData.part === 'limb') {
           object.material = object.material.clone();
@@ -5174,7 +4997,6 @@
     }
 
     function resetPlayerState(p, index) {
-      hideStatusFx(p.model);
       p.active = index < game.activePlayers;
       p.x = centerX(0) + (index === 0 ? -1.8 : 1.8);
       p.y = pathY(0) + 0.02;
@@ -5647,7 +5469,6 @@
     function returnToTitle() {
       game.paused = false;
       game.shake = 0;
-      players.forEach((p) => hideStatusFx(p.model));
       clearNotices();
       setSplitScreen(false);
       clearProjectiles();
@@ -5671,7 +5492,6 @@
       setScreen(dom.pauseScreen, game.paused);
       if (game.paused) {
         game.shake = 0;
-        players.forEach((p) => hideStatusFx(p.model));
         clearNotices();
         clearProjectiles();
         clearPowerProjectiles();
@@ -7533,154 +7353,9 @@
       }
     }
 
-    function effectExpiring(p, id) {
-      const effect = p.effects[id];
-      if (!effect || effect.id === 'shield') return false;
-      const duration = Math.max(0.001, effect.duration || effect.time || 1);
-      return effect.time <= 2 || effect.time / duration <= 0.25;
-    }
-
-    function updateStatusVisuals(p, model, dt) {
-      if (!p.effects || Object.keys(p.effects).length === 0) {
-        hideStatusFx(model);
-        return;
-      }
-      const fx = ensureStatusFx(model);
-      if (!fx) {
-        model.statusExpiryBlink = false;
-        return;
-      }
-      const groups = [
-        fx.statusAuraShell, fx.statusAuraRing, fx.statusSpeedLines, fx.statusShieldOrbit,
-        fx.statusJumpRings, fx.statusMagnetOrbit, fx.statusGlideClouds,
-        fx.statusBananaDrops, fx.statusReverseArrows, fx.statusInkWisps
-      ];
-      groups.forEach((part) => { if (part) part.visible = false; });
-      model.statusExpiryBlink = false;
-      if (game.phase !== 'running' || game.paused || p.recoveryTime > 0 || p.sheepTime > 0) {
-        hideStatusFx(model);
-        return;
-      }
-      fx.visible = true;
-
-      const invincible = hasEffect(p, 'invincible');
-      const giant = hasEffect(p, 'giant') || hasEffect(p, 'giantSkill');
-      const speed = hasEffect(p, 'speed');
-      const dash = hasEffect(p, 'dash');
-      const roll = hasEffect(p, 'roll');
-      const triple = hasEffect(p, 'triple');
-      const magnet = hasEffect(p, 'magnet');
-      const shrink = hasEffect(p, 'shrink');
-      const glide = hasEffect(p, 'glide');
-      const banana = hasEffect(p, 'banana');
-      const reverse = hasEffect(p, 'reverse');
-      const ink = hasEffect(p, 'ink');
-      const shield = hasEffect(p, 'shield');
-      const hasAura = invincible || giant || speed || dash || roll || shrink || banana || reverse || ink;
-
-      if (hasAura && fx.statusAuraShell && fx.statusAuraRing) {
-        const color = fx._auraColor || (fx._auraColor = new THREE.Color());
-        if (invincible) color.setHSL((game.elapsed * 0.32) % 1, 0.78, 0.62);
-        else if (giant) color.set(0xffb35f);
-        else if (dash) color.set(0xffb96b);
-        else if (speed || roll) color.set(0x9de0c1);
-        else if (shrink) color.set(0xb7f0dd);
-        else if (banana) color.set(0xffd166);
-        else if (reverse) color.set(0xc5b8f5);
-        else color.set(0x544b6d);
-        const pulse = 0.82 + Math.sin(game.elapsed * 8.5) * 0.18;
-        const expiring = (invincible && effectExpiring(p, 'invincible')) || (giant && (effectExpiring(p, 'giant') || effectExpiring(p, 'giantSkill')));
-        const blink = expiring ? (Math.sin(game.elapsed * 24) > -0.15 ? 1 : 0.35) : 1;
-        fx.statusAuraShell.visible = true;
-        fx.statusAuraShell.material.color.copy(color);
-        fx.statusAuraShell.material.opacity = (invincible ? 0.28 : 0.2) * pulse * blink;
-        fx.statusAuraShell.scale.set(1.45, 1.9, 1.45);
-        fx.statusAuraRing.visible = true;
-        fx.statusAuraRing.material.color.copy(color);
-        fx.statusAuraRing.material.opacity = 0.58 * pulse * blink;
-        fx.statusAuraRing.rotation.z += dt * (invincible ? 3.4 : 1.8);
-      }
-
-      if ((speed || dash) && fx.statusSpeedLines) {
-        fx.statusSpeedLines.visible = true;
-        const intensity = dash ? 1 : 0.7;
-        fx.statusSpeedLines.children.forEach((line, index) => {
-          line.material.color.set(dash ? 0xffb96b : 0x9de0c1);
-          line.material.opacity = intensity * (0.45 + Math.sin(game.elapsed * 14 + index) * 0.28);
-          line.scale.z = 0.75 + intensity * 0.7;
-        });
-      }
-
-      if (shield && fx.statusShieldOrbit) {
-        fx.statusShieldOrbit.visible = true;
-        fx.statusShieldOrbit.rotation.y += dt * 2.8;
-        fx.statusShieldOrbit.rotation.z += dt * 0.8;
-        const charges = Math.max(1, p.effects.shield.charges || 1);
-        fx.statusShieldOrbit.children.forEach((part, index) => {
-          part.material.opacity = index < charges ? 0.95 : 0.28;
-          part.scale.setScalar(index < charges ? 1 : 0.72);
-        });
-      }
-
-      if (triple && fx.statusJumpRings) {
-        fx.statusJumpRings.visible = true;
-        const available = clamp(3 - (p.jumpsUsed || 0), 0, 3);
-        fx.statusJumpRings.children.forEach((ring, index) => {
-          ring.material.opacity = index < available ? 0.9 : 0.16;
-          ring.visible = index < 3;
-          ring.rotation.z += dt * (index % 2 ? -2 : 2);
-        });
-      }
-
-      if (magnet && fx.statusMagnetOrbit) {
-        fx.statusMagnetOrbit.visible = true;
-        fx.statusMagnetOrbit.children.forEach((star, index) => {
-          const angle = game.elapsed * 3.2 + index / fx.statusMagnetOrbit.children.length * Math.PI * 2;
-          star.position.set(Math.cos(angle) * 1.45, 1.3 + Math.sin(angle * 2 + index) * 0.55, Math.sin(angle) * 1.45);
-          star.rotation.y += dt * 4;
-        });
-      }
-
-      if (glide && fx.statusGlideClouds) {
-        fx.statusGlideClouds.visible = !p.grounded;
-        fx.statusGlideClouds.children.forEach((puff, index) => {
-          puff.position.y = 0.08 + Math.sin(game.elapsed * 7 + index) * 0.08;
-          puff.scale.x = 1.3 + Math.sin(game.elapsed * 9 + index) * 0.18;
-        });
-      }
-
-      if (banana && fx.statusBananaDrops) {
-        fx.statusBananaDrops.visible = true;
-        fx.statusBananaDrops.children.forEach((drop, index) => {
-          drop.position.x = (index - 1) * 0.48 + Math.sin(game.elapsed * 9 + index * 1.7) * 0.24;
-          drop.position.y = 0.15 + Math.abs(Math.sin(game.elapsed * 8 + index)) * 0.18;
-        });
-      }
-
-      if (reverse && fx.statusReverseArrows) {
-        fx.statusReverseArrows.visible = true;
-        fx.statusReverseArrows.rotation.y += dt * 2.4;
-        fx.statusReverseArrows.children.forEach((arrow, index) => {
-          arrow.position.y = 2.25 + Math.sin(game.elapsed * 6 + index) * 0.18;
-        });
-      }
-
-      if (ink && fx.statusInkWisps) {
-        fx.statusInkWisps.visible = true;
-        fx.statusInkWisps.children.forEach((wisp, index) => {
-          const angle = game.elapsed * 1.8 + index / fx.statusInkWisps.children.length * Math.PI * 2;
-          wisp.position.set(Math.cos(angle) * 1.15, 1.15 + Math.sin(angle * 1.8) * 0.65, Math.sin(angle) * 1.15);
-          wisp.scale.setScalar(0.8 + Math.sin(game.elapsed * 5 + index) * 0.12);
-        });
-      }
-
-      model.statusExpiryBlink = giant && (effectExpiring(p, 'giant') || effectExpiring(p, 'giantSkill'));
-    }
-
     function animateModel(p, dt) {
       const model = p.model;
       if (!model) return;
-      updateStatusVisuals(p, model, dt);
       const duoCharacterPreview = game.phase === 'skins' && game.characterPick && game.characterPick.count > 1;
       const previewing = (game.phase === 'title' || game.phase === 'skins' || game.phase === 'upgrade') && (p.id === 0 || duoCharacterPreview);
       if (previewing) {
@@ -7714,8 +7389,7 @@
       model.root.rotation.y = p.heading;
       if (model.visual) {
         const iframeBlink = game.mode !== 'single' || game.iframeTimer <= 0 || Math.floor(game.elapsed * 14) % 2 === 0;
-        const expiryBlink = !model.statusExpiryBlink || Math.floor(game.elapsed * 12) % 2 === 0;
-        model.visual.visible = iframeBlink && expiryBlink;
+        model.visual.visible = iframeBlink;
       }
 
       if (p.sheepTime > 0) {
@@ -8135,20 +7809,6 @@
               inkAmount: Number(inkAmountFor(p).toFixed(3)),
               character: p.model ? p.model.characterId : null,
               characterSkill: p.model ? characterSkillFor(p).name : null,
-              statusVisuals: p.model ? {
-                hasStatusFx: Boolean(p.model.statusFx),
-                visible: Boolean(p.model.statusFx && p.model.statusFx.visible),
-                aura: Boolean(p.model.statusAuraShell && p.model.statusAuraShell.visible),
-                speedLines: Boolean(p.model.statusSpeedLines && p.model.statusSpeedLines.visible),
-                shield: Boolean(p.model.statusShieldOrbit && p.model.statusShieldOrbit.visible),
-                triple: Boolean(p.model.statusJumpRings && p.model.statusJumpRings.visible),
-                magnet: Boolean(p.model.statusMagnetOrbit && p.model.statusMagnetOrbit.visible),
-                glide: Boolean(p.model.statusGlideClouds && p.model.statusGlideClouds.visible),
-                banana: Boolean(p.model.statusBananaDrops && p.model.statusBananaDrops.visible),
-                reverse: Boolean(p.model.statusReverseArrows && p.model.statusReverseArrows.visible),
-                ink: Boolean(p.model.statusInkWisps && p.model.statusInkWisps.visible),
-                expiryBlink: Boolean(p.model.statusExpiryBlink)
-              } : null,
               sheepVisible: Boolean(p.model && p.model.sheepShell && p.model.sheepShell.visible),
               visualHidden: Boolean(p.model && p.model.visual && !p.model.visual.visible),
               modelKind: p.model && p.model.gltfRoot ? 'gltf' : 'procedural'
@@ -8351,7 +8011,6 @@
         clearEffects(playerId) {
           const p = players[clamp(Number(playerId) || 0, 0, 1)];
           p.effects = {};
-          hideStatusFx(p.model);
           return true;
         },
         setSeed(seed) {
@@ -8541,7 +8200,6 @@
             ['jump height raised', JUMP_VELOCITIES.first === 13.4 && JUMP_VELOCITIES.second === 12.3],
             ['responsive ground movement tuning', CONTROL_TUNING.groundSpeed === 24 && CONTROL_TUNING.groundAccel === 70 && CONTROL_TUNING.groundDecel === 92 && CONTROL_TUNING.groundTurnAccel === 110],
             ['approach helper', approach(0, 10, 2) === 2 && approach(10, 0, 3) === 7],
-            ['status fx starts clean', !players[0].model.statusFx && !players[1].model.statusFx && typeof ensureStatusFx === 'function'],
             ['split screen thresholds', SPLIT_ENTER_Z > SPLIT_EXIT_Z && SPLIT_ENTER_X > SPLIT_EXIT_X],
             ['camera shake disabled', game.shake === 0],
             ['camera look smoothing ready', Boolean(world.cameraLookBase && world.cameraLookBase2)],
