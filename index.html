@@ -1601,7 +1601,6 @@
     const SPLIT_EXIT_Z = 38;
     const SPLIT_ENTER_X = 18;
     const SPLIT_EXIT_X = 14;
-    const CAMERA_FOLLOW_MAX_LAG = 0.6;
 
     const BUFF_DEFS = {
       invincible: { name: '无敌', short: '无敌', duration: 6, color: '#ffd166' },
@@ -7891,51 +7890,22 @@
       else if (game.splitScreen && dz < SPLIT_EXIT_Z && dx < SPLIT_EXIT_X) setSplitScreen(false);
     }
 
-    function pathForward(z) {
-      const dx = centerX(z + 2) - centerX(z - 2);
-      const length = Math.hypot(dx, 4) || 1;
-      return { x: dx / length, z: 4 / length };
-    }
-
-    function followCameraPosition(base, target, dt, snap = false) {
-      if (!base || !target) return;
-      if (snap) {
-        base.copy(target);
-        world.cameraFollowLag = 0;
-        return;
-      }
-      base.lerp(target, 1 - Math.exp(-20 * dt));
-      const distance = base.distanceTo(target);
-      if (distance > CAMERA_FOLLOW_MAX_LAG) {
-        base.lerp(target, 1 - CAMERA_FOLLOW_MAX_LAG / distance);
-      }
-      world.cameraFollowLag = Math.max(
-        world.cameraFollowLag || 0,
-        Math.min(base.distanceTo(target), CAMERA_FOLLOW_MAX_LAG)
-      );
-    }
-
     function updateFollowCamera(cam, p, desired, look, dt, fov, base, lookBase, snap = false) {
       if (!cam || !desired || !look) return;
-      const speedFactor = cameraSpeedFactor(p);
-      const groundY = surfaceYAt(p.x, p.z) ?? pathY(p.z);
-      const anchorY = groundY * 0.85 + p.y * 0.15;
-      const forward = pathForward(p.z);
-      const distance = 14.5;
-      const lookAhead = 10 + speedFactor * 4;
-      const boostPov = hasEffect(p, 'speed') || hasEffect(p, 'dash') ? 3.5 : 0;
       desired.set(
-        p.x - forward.x * distance,
-        anchorY + 7.5,
-        p.z - forward.z * distance
+        p.x * 0.52 + centerX(p.z) * 0.48,
+        p.y + 7.3 + clamp(p.vy * 0.09, -0.8, 1.5),
+        p.z - 13.5
       );
-      look.set(p.x + forward.x * lookAhead, anchorY + 2.3, p.z + forward.z * lookAhead);
+      look.set(p.x * 0.6 + centerX(p.z) * 0.4, p.y + 2.3, p.z + 9.5);
       if (!base) return;
-      followCameraPosition(base, desired, dt, snap);
+      if (snap) base.copy(desired);
+      else base.lerp(desired, 1 - Math.exp(-dt * 6.5));
+      world.cameraFollowLag = Math.max(world.cameraFollowLag || 0, base.distanceTo(desired));
       if (!lookBase) return;
       lookBase.copy(look);
       cam.position.copy(base);
-      cam.fov = lerp(cam.fov, fov + speedFactor * 12 + boostPov, 1 - Math.exp(-dt * 4));
+      cam.fov = fov;
       cam.lookAt(lookBase);
       cam.updateProjectionMatrix();
     }
@@ -8029,25 +7999,19 @@
       if (game.mode === 'duo') {
         const a = players[0];
         const b = players[1];
-        const speedFactor = Math.max(cameraSpeedFactor(a), cameraSpeedFactor(b));
-        const boostPov = hasEffect(a, 'speed') || hasEffect(a, 'dash') || hasEffect(b, 'speed') || hasEffect(b, 'dash') ? 3.2 : 0;
         const midX = (a.x + b.x) * 0.5;
+        const midY = (a.y + b.y) * 0.5;
         const midZ = (a.z + b.z) * 0.5;
-        const groundA = surfaceYAt(a.x, a.z) ?? pathY(a.z);
-        const groundB = surfaceYAt(b.x, b.z) ?? pathY(b.z);
-        const anchorA = groundA * 0.7 + a.y * 0.3;
-        const anchorB = groundB * 0.7 + b.y * 0.3;
-        const anchorY = (anchorA + anchorB) * 0.5;
-        const forward = pathForward(midZ);
         const separation = Math.abs(a.z - b.z);
-        const distance = 15.5;
-        const lookAhead = 10 + speedFactor * 4;
-        world.cameraDesired.set(midX - forward.x * distance, anchorY + 7.8 + clamp(separation * 0.01, 0, 2), midZ - forward.z * distance);
-        world.cameraLook.set(midX + forward.x * lookAhead, anchorY + 2.4, midZ + forward.z * lookAhead);
-        followCameraPosition(world.cameraBase, world.cameraDesired, dt, snapCamera);
+        const distance = 14.5 + clamp(separation * 0.045, 0, 5.5);
+        world.cameraDesired.set(midX, midY + 7.6 + clamp(separation * 0.01, 0, 2), midZ - distance);
+        world.cameraLook.set(midX, midY + 2.4, midZ + 10 + separation * 0.02);
+        if (snapCamera) world.cameraBase.copy(world.cameraDesired);
+        else world.cameraBase.lerp(world.cameraDesired, factor);
+        world.cameraFollowLag = Math.max(world.cameraFollowLag || 0, world.cameraBase.distanceTo(world.cameraDesired));
         world.cameraLookBase.copy(world.cameraLook);
         camera.position.copy(world.cameraBase);
-        camera.fov = lerp(camera.fov, 60 + clamp(separation * 0.025, 0, 7) + speedFactor * 8 + boostPov, factor);
+        camera.fov = 60 + clamp(separation * 0.025, 0, 7);
       } else {
         updateFollowCamera(camera, player, world.cameraDesired, world.cameraLook, dt, 58, world.cameraBase, world.cameraLookBase, snapCamera);
         game.shake = 0;
@@ -8684,7 +8648,6 @@
             ['responsive ground movement tuning', CONTROL_TUNING.groundSpeed === 24 && CONTROL_TUNING.groundAccel === 70 && CONTROL_TUNING.groundDecel === 92 && CONTROL_TUNING.groundTurnAccel === 110],
             ['approach helper', approach(0, 10, 2) === 2 && approach(10, 0, 3) === 7],
             ['split screen thresholds', SPLIT_ENTER_Z > SPLIT_EXIT_Z && SPLIT_ENTER_X > SPLIT_EXIT_X],
-            ['camera follow lag bounded', CAMERA_FOLLOW_MAX_LAG === 0.6],
             ['start track extended', LEVEL.startExtension === 48 && surfaceYAt(centerX(-20), -20) === pathY(-20)],
             ['camera shake disabled', game.shake === 0],
             ['camera look smoothing ready', Boolean(world.cameraLookBase && world.cameraLookBase2)],
