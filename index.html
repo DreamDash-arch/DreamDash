@@ -1605,6 +1605,12 @@
     const SPLIT_EXIT_Z = 38;
     const SPLIT_ENTER_X = 18;
     const SPLIT_EXIT_X = 14;
+    const CAMERA_VERTICAL_DEAD_ZONE = 0.4;
+    const CAMERA_VERTICAL_FOLLOW = 0.75;
+    const CAMERA_MAX_VERTICAL_LAG = 2;
+    const CAMERA_GIANT_HEIGHT = 2;
+    const CAMERA_GIANT_DISTANCE = 1.5;
+    const CAMERA_GIANT_LOOK = 3;
 
     const BUFF_DEFS = {
       invincible: { name: '无敌', short: '无敌', duration: 6, color: '#ffd166' },
@@ -5634,6 +5640,11 @@
     function damagePlayer(amount = 1) {
       if (game.mode !== 'single' || game.phase !== 'running' || !run.active) return false;
       if (game.iframeTimer > 0 || player.recoveryTime > 0 || isPlayerInvincible(player)) return false;
+      if (consumeShield(player)) {
+        game.iframeTimer = 0.35;
+        showNotice(player.id, '护盾抵挡伤害！', '消耗 1 层护盾', 'blue');
+        return true;
+      }
       const def = difficultyDef(game.difficulty);
       player.hearts = Math.max(0, (player.hearts || 0) - amount);
       run.damageTaken = true;
@@ -6210,10 +6221,6 @@
       if (!def) return false;
       if (isPlayerInvincible(p)) {
         showNotice(p.id, '无敌挡下了陷阱', def.name, 'blue');
-        return false;
-      }
-      if (consumeShield(p)) {
-        showNotice(p.id, '护盾抵消了陷阱', def.name, 'blue');
         return false;
       }
       const activeTraps = Object.keys(p.effects).filter((id) => !p.effects[id].buff);
@@ -7202,10 +7209,6 @@
         showNotice(p.id, '无敌挡下了影响', label, 'blue');
         return true;
       }
-      if (consumeShield(p)) {
-        showNotice(p.id, '护盾挡住了影响', label, 'blue');
-        return true;
-      }
       return false;
     }
 
@@ -7221,11 +7224,15 @@
       }
       run.fell = true;
       if (game.difficulty !== 'nap') {
-        player.hearts = Math.max(0, (player.hearts || 0) - 1);
-        run.damageTaken = true;
-        if (player.hearts <= 0) {
-          failSingleRun();
-          return;
+        if (consumeShield(player)) {
+          showNotice(player.id, '护盾抵挡掉落伤害！', '消耗 1 层护盾', 'blue');
+        } else {
+          player.hearts = Math.max(0, (player.hearts || 0) - 1);
+          run.damageTaken = true;
+          if (player.hearts <= 0) {
+            failSingleRun();
+            return;
+          }
         }
       }
       p.recoveryCheckpoint = nearestCheckpointIndex(p.z);
@@ -7936,13 +7943,13 @@
           model.rightLeg.rotation.x = opposite * 0.76;
           model.leftArm.rotation.set(opposite * 0.72, 0, -0.18);
           model.rightArm.rotation.set(wave * 0.72, 0, 0.18);
-          model.visual.position.y = Math.abs(wave) * 0.075;
+          model.visual.position.y = model.gltfRoot ? 0 : Math.abs(wave) * 0.075;
         } else {
           model.leftLeg.rotation.x = lerp(model.leftLeg.rotation.x, -0.42, 0.18);
           model.rightLeg.rotation.x = lerp(model.rightLeg.rotation.x, 0.42, 0.18);
           model.leftArm.rotation.z = lerp(model.leftArm.rotation.z, -1.1, 0.14);
           model.rightArm.rotation.z = lerp(model.rightArm.rotation.z, 1.1, 0.14);
-          model.visual.position.y = 0.04;
+          model.visual.position.y = model.gltfRoot ? 0 : 0.04;
         }
       }
 
@@ -7956,7 +7963,7 @@
         scale * recoveryScale * (1 + recoverySquash * 0.55)
       );
       model.visual.rotation.z = -p.vx * (hasEffect(p, 'reverse') ? -0.012 : 0.012) + p.spinRotation;
-      if (p.spinRotation) {
+      if (p.spinMode === 'fullTurn' && p.spinRotation) {
         const spinCenterY = 1.65 * model.visual.scale.y;
         model.visual.position.x = Math.sin(p.spinRotation) * spinCenterY;
         model.visual.position.y += (1 - Math.cos(p.spinRotation)) * spinCenterY;
@@ -8022,16 +8029,28 @@
     function updateFollowCamera(cam, p, desired, look, dt, fov, base, lookBase, snap = false) {
       if (!cam || !desired || !look) return;
       const groundY = surfaceYAt(p.x, p.z) ?? pathY(p.z);
-      const anchorY = groundY * 0.85 + p.y * 0.15;
+      const jumpHeight = Math.max(0, p.y - groundY - CAMERA_VERTICAL_DEAD_ZONE);
+      const giantLift = Math.max(0, p.sizeScale - 1);
+      const distance = 13.5 + giantLift * CAMERA_GIANT_DISTANCE;
       desired.set(
         p.x * 0.52 + centerX(p.z) * 0.48,
-        anchorY + 7.3,
-        p.z - 13.5
+        groundY + 7.3 + jumpHeight * CAMERA_VERTICAL_FOLLOW + giantLift * CAMERA_GIANT_HEIGHT,
+        p.z - distance
       );
-      look.set(p.x * 0.6 + centerX(p.z) * 0.4, anchorY + 2.3, p.z + 9.5);
+      look.set(
+        p.x * 0.6 + centerX(p.z) * 0.4,
+        groundY + 2.3 + jumpHeight * 0.35 + giantLift * 0.6,
+        p.z + 9.5 + giantLift * CAMERA_GIANT_LOOK
+      );
       if (!base) return;
       if (snap) base.copy(desired);
       else base.lerp(desired, 1 - Math.exp(-dt * 6.5));
+      if (!snap) {
+        const verticalLag = base.y - desired.y;
+        if (Math.abs(verticalLag) > CAMERA_MAX_VERTICAL_LAG) {
+          base.y = desired.y + Math.sign(verticalLag) * CAMERA_MAX_VERTICAL_LAG;
+        }
+      }
       world.cameraFollowLag = Math.max(world.cameraFollowLag || 0, base.distanceTo(desired));
       if (!lookBase) return;
       if (snap) lookBase.copy(look);
@@ -8135,15 +8154,33 @@
         const midZ = (a.z + b.z) * 0.5;
         const groundA = surfaceYAt(a.x, a.z) ?? pathY(a.z);
         const groundB = surfaceYAt(b.x, b.z) ?? pathY(b.z);
-        const anchorA = groundA * 0.85 + a.y * 0.15;
-        const anchorB = groundB * 0.85 + b.y * 0.15;
-        const anchorY = (anchorA + anchorB) * 0.5;
+        const jumpHeight = Math.max(
+          0,
+          a.y - groundA - CAMERA_VERTICAL_DEAD_ZONE,
+          b.y - groundB - CAMERA_VERTICAL_DEAD_ZONE
+        );
+        const giantLift = Math.max(0, a.sizeScale - 1, b.sizeScale - 1);
+        const averageGround = (groundA + groundB) * 0.5;
         const separation = Math.abs(a.z - b.z);
-        const distance = 14.5 + clamp(separation * 0.045, 0, 5.5);
-        world.cameraDesired.set(midX, anchorY + 7.6 + clamp(separation * 0.01, 0, 2), midZ - distance);
-        world.cameraLook.set(midX, anchorY + 2.4, midZ + 10 + separation * 0.02);
+        const distance = 14.5 + clamp(separation * 0.045, 0, 5.5) + giantLift * CAMERA_GIANT_DISTANCE;
+        world.cameraDesired.set(
+          midX,
+          averageGround + 7.6 + clamp(separation * 0.01, 0, 2) + jumpHeight * CAMERA_VERTICAL_FOLLOW + giantLift * CAMERA_GIANT_HEIGHT,
+          midZ - distance
+        );
+        world.cameraLook.set(
+          midX,
+          averageGround + 2.4 + jumpHeight * 0.35 + giantLift * 0.6,
+          midZ + 10 + separation * 0.02 + giantLift * CAMERA_GIANT_LOOK
+        );
         if (snapCamera) world.cameraBase.copy(world.cameraDesired);
         else world.cameraBase.lerp(world.cameraDesired, factor);
+        if (!snapCamera) {
+          const verticalLag = world.cameraBase.y - world.cameraDesired.y;
+          if (Math.abs(verticalLag) > CAMERA_MAX_VERTICAL_LAG) {
+            world.cameraBase.y = world.cameraDesired.y + Math.sign(verticalLag) * CAMERA_MAX_VERTICAL_LAG;
+          }
+        }
         world.cameraFollowLag = Math.max(world.cameraFollowLag || 0, world.cameraBase.distanceTo(world.cameraDesired));
         if (snapCamera) world.cameraLookBase.copy(world.cameraLook);
         else world.cameraLookBase.lerp(world.cameraLook, 1 - Math.exp(-dt * 4.5));
