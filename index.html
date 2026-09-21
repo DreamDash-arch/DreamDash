@@ -514,15 +514,17 @@
     .rating-badge {
       display: grid;
       place-items: center;
-      width: 118px;
-      height: 118px;
+      width: 154px;
+      height: 104px;
       margin: -6px auto 12px;
       border: 5px solid var(--ink);
       border-radius: 36px;
       background: linear-gradient(145deg, #fff6ba, #ffb85f);
       box-shadow: 0 9px 0 rgba(53,43,77,.82), 0 18px 28px rgba(99,60,100,.16);
       color: #7b4c00;
-      font-size: 70px;
+      font-size: 46px;
+      letter-spacing: -3px;
+      white-space: nowrap;
       font-weight: 1000;
       transform: rotate(-4deg);
     }
@@ -1086,7 +1088,7 @@
 
       <div id="progressHud" class="hud-cluster" aria-label="路程进度">
         <div class="progress-inner">
-          <div class="progress-meta"><span id="difficultyChip" class="difficulty-chip">沉梦</span><span id="progressText">0%</span></div>
+          <div class="progress-meta"><span id="difficultyChip" class="difficulty-chip">沉梦</span><span id="runTimer">0:00</span><span id="progressText">0%</span></div>
           <div class="progress-track"><div id="progressFill" class="progress-fill"></div></div>
         </div>
       </div>
@@ -1141,7 +1143,7 @@
       <div class="glass">
         <div class="eyebrow">高速无失败的双人云海派对</div>
         <h1>梦幻跑跑</h1>
-        <p class="subtitle">速度提升到三倍，空中云路、九种增益和四种捣蛋道具已经加入。单人轻松跑，或和朋友抢同一批道具冲过终点。</p>
+        <p class="subtitle">速度提升到三倍，空中云路、十种增益和三种捣蛋道具已经加入。单人轻松跑，或和朋友抢同一批道具冲过终点。</p>
         <div class="stats-line">
           <span class="stat-pill">累计星星 <strong id="titleTotalStars">0</strong></span>
           <span class="stat-pill">角色星币 <strong id="titleStarCoins">0</strong></span>
@@ -1222,7 +1224,7 @@
     <section id="resultScreen" class="screen">
       <div class="glass">
         <div id="resultEyebrow" class="eyebrow">梦境小径完成</div>
-        <div id="ratingBadge" class="rating-badge">A</div>
+        <div id="ratingBadge" class="rating-badge">☆☆☆</div>
         <div id="resultMessage" class="result-message">真棒！你把星光带回来了。</div>
         <div id="resultTask" class="subtitle"></div>
         <div class="result-grid">
@@ -1385,6 +1387,7 @@
       missionHud: document.getElementById('missionHud'),
       progressHud: document.getElementById('progressHud'),
       progressText: document.getElementById('progressText'),
+      runTimer: document.getElementById('runTimer'),
       progressFill: document.getElementById('progressFill'),
       duoHud: document.getElementById('duoHud'),
       duoPin1: document.getElementById('duoPin1'),
@@ -1449,7 +1452,8 @@
       mainHalfWidth: 10.2,
       finishLine: 6288,
       totalStars: 72,
-      aStarTarget: 45,
+      ratingStarTarget: 30,
+      ratingUnlockStars: 2,
       zones: 9,
       zoneLength: 700,
       checkpoints: [0, 700, 1400, 2100, 2800, 3500, 4200, 4900, 5600, 6280]
@@ -1459,22 +1463,22 @@
       {
         id: 'nap', name: '小憩', color: '#9de0c1',
         desc: '速度 ×1.7 · 障碍 45%（双倍数量） · 2 只小怪 · 2 发弹幕 · 5 心 · 无敌帧 2.0s',
-        speed: 1.7, obstacleRate: 0.45, enemyMax: 2, bullets: 2, hearts: 5, iframe: 2.0, fireInterval: 2.2
+        speed: 1.7, obstacleRate: 0.45, enemyMax: 2, bullets: 2, hearts: 5, iframe: 2.0, fireInterval: 2.2, targetTime: 150
       },
       {
         id: 'dream', name: '沉梦', color: '#a8d8ff',
         desc: '速度 ×2.0 · 障碍 85%（双倍数量） · 4 只小怪 · 6 发弹幕 · 3 心 · 无敌帧 1.2s',
-        speed: 2.0, obstacleRate: 0.85, enemyMax: 4, bullets: 6, hearts: 3, iframe: 1.2, fireInterval: 1.9
+        speed: 2.0, obstacleRate: 0.85, enemyMax: 4, bullets: 6, hearts: 3, iframe: 1.2, fireInterval: 1.9, targetTime: 125
       },
       {
         id: 'illusion', name: '幻梦', color: '#ffd166',
         desc: '速度 ×2.4 · 障碍全开（双倍数量） · 8 只小怪 · 12 发弹幕 · 3 心 · 无敌帧 0.9s',
-        speed: 2.4, obstacleRate: 1.0, enemyMax: 8, bullets: 12, hearts: 3, iframe: 0.9, fireInterval: 1.6
+        speed: 2.4, obstacleRate: 1.0, enemyMax: 8, bullets: 12, hearts: 3, iframe: 0.9, fireInterval: 1.6, targetTime: 105
       },
       {
         id: 'nightmare', name: '噩梦', color: '#ff9f68',
         desc: '速度 ×2.7 · 障碍全开（双倍数量） · 12 只小怪 · 18 发弹幕 · 3 心 · 无敌帧 0.7s',
-        speed: 2.7, obstacleRate: 1.0, enemyMax: 12, bullets: 18, hearts: 3, iframe: 0.7, fireInterval: 1.3
+        speed: 2.7, obstacleRate: 1.0, enemyMax: 12, bullets: 18, hearts: 3, iframe: 0.7, fireInterval: 1.3, targetTime: 90
       }
     ];
 
@@ -1611,14 +1615,14 @@
       shrink: { name: '缩小蘑菇', short: '缩小', duration: 6, scale: 0.5, color: '#b7f0dd' },
       glide: { name: '云朵滑翔', short: '滑翔', duration: 6, color: '#a8d8ff' },
       dash: { name: '自动冲刺', short: '冲刺', duration: 2, multiplier: 1.8, color: '#ffb96b' },
-      shield: { name: '护盾', short: '护盾', duration: 999, charges: 1, color: '#ffe6a6' }
+      shield: { name: '护盾', short: '护盾', duration: 999, charges: 1, color: '#ffe6a6' },
+      giant: { name: '巨大蘑菇', short: '巨大', duration: 6, color: '#ff9f68' }
     };
 
     const TRAP_DEFS = {
       banana: { name: '香蕉皮', short: '滑移', duration: 2.8, color: '#ffd166' },
       reverse: { name: '致幻蘑菇', short: '反向', duration: 5, color: '#c5b8f5' },
-      ink: { name: '墨鱼', short: '墨迹', duration: 8, color: '#544b6d' },
-      giant: { name: '巨大蘑菇', short: '巨大', duration: 6, color: '#ff9f68' }
+      ink: { name: '墨鱼', short: '墨迹', duration: 8, color: '#544b6d' }
     };
 
     const SKILL_CONFIG = {
@@ -1653,7 +1657,7 @@
       totalDoubleJumps: 0,
       totalJelly: 0,
       bestStars: 0,
-      lastRating: 'B'
+      lastRating: '0★'
     };
 
     const DEFAULT_SKINS = { unlocked: ['cloud'], selected: 'cloud' };
@@ -1661,7 +1665,13 @@
     const DEFAULT_SETTINGS = { muted: false, difficulty: 'nap' };
     const DEFAULT_TALENTS = { points: 0, unlocked: ['root'] };
     const DEFAULT_UPGRADES = { knight: 0, barbarian: 0, rogue: 0, mage: 0 };
-    const DEFAULT_PROGRESS = { unlockedDifficulties: ['nap'], clearedDifficulties: [], playedRuns: 0 };
+    const DEFAULT_PROGRESS = {
+      unlockedDifficulties: ['nap'],
+      clearedDifficulties: [],
+      playedRuns: 0,
+      bestStarsByDifficulty: { nap: 0, dream: 0, illusion: 0, nightmare: 0 },
+      perfectDifficulties: []
+    };
     const CHARACTER_UNLOCK_COSTS = { rogue: 300, knight: 600 };
     const BARBARIAN_RUNS_REQUIRED = 3;
 
@@ -1681,6 +1691,18 @@
 
     function lerp(a, b, t) {
       return a + (b - a) * t;
+    }
+
+    function formatTime(seconds) {
+      const total = Math.max(0, Math.floor(Number(seconds) || 0));
+      const minutes = Math.floor(total / 60);
+      const remainder = String(total % 60).padStart(2, '0');
+      return `${minutes}:${remainder}`;
+    }
+
+    function starText(stars) {
+      const count = clamp(Math.floor(Number(stars) || 0), 0, 3);
+      return `${'★'.repeat(count)}${'☆'.repeat(3 - count)}`;
     }
 
     function smoothstep(t) {
@@ -1737,7 +1759,7 @@
         totalDoubleJumps: Math.max(0, Math.floor(numberOr(value && value.totalDoubleJumps, 0))),
         totalJelly: Math.max(0, Math.floor(numberOr(value && value.totalJelly, 0))),
         bestStars: Math.max(0, Math.floor(numberOr(value && value.bestStars, 0))),
-        lastRating: value && (value.lastRating === 'A' || value.lastRating === 'B') ? value.lastRating : 'B'
+        lastRating: value && typeof value.lastRating === 'string' ? value.lastRating : '0★'
       };
     }
 
@@ -1787,6 +1809,10 @@
     function normalizeProgress(value, settings, legacyRuns = 0) {
       const rawUnlocked = value && Array.isArray(value.unlockedDifficulties) ? value.unlockedDifficulties : [];
       const rawCleared = value && Array.isArray(value.clearedDifficulties) ? value.clearedDifficulties : [];
+      const rawBestStars = value && value.bestStarsByDifficulty && typeof value.bestStarsByDifficulty === 'object'
+        ? value.bestStarsByDifficulty
+        : {};
+      const rawPerfect = value && Array.isArray(value.perfectDifficulties) ? value.perfectDifficulties : [];
       const unlocked = ['nap'];
       const addWithPrerequisites = (id) => {
         const index = DIFFICULTY_DEFS.findIndex((item) => item.id === id);
@@ -1802,11 +1828,25 @@
       DIFFICULTY_DEFS.forEach((def) => {
         if (rawCleared.includes(def.id) && !cleared.includes(def.id)) cleared.push(def.id);
       });
+      const bestStarsByDifficulty = {};
+      const perfectDifficulties = [];
+      DIFFICULTY_DEFS.forEach((def, index) => {
+        const stored = Math.floor(numberOr(rawBestStars[def.id], 0, 0, 3));
+        const migrated = cleared.includes(def.id) ? 2 : 0;
+        bestStarsByDifficulty[def.id] = Math.max(stored, migrated);
+        if (rawPerfect.includes(def.id) && !perfectDifficulties.includes(def.id)) perfectDifficulties.push(def.id);
+        if (bestStarsByDifficulty[def.id] >= LEVEL.ratingUnlockStars) {
+          const next = DIFFICULTY_DEFS[index + 1];
+          if (next && !unlocked.includes(next.id)) unlocked.push(next.id);
+        }
+      });
       const hasPlayedRuns = value && typeof value.playedRuns === 'number' && Number.isFinite(value.playedRuns);
       return {
         unlockedDifficulties: unlocked,
         clearedDifficulties: cleared,
-        playedRuns: Math.max(0, Math.floor(hasPlayedRuns ? value.playedRuns : legacyRuns))
+        playedRuns: Math.max(0, Math.floor(hasPlayedRuns ? value.playedRuns : legacyRuns)),
+        bestStarsByDifficulty,
+        perfectDifficulties
       };
     }
 
@@ -1927,17 +1967,27 @@
       saveProgress();
     }
 
-    function markDifficultyCompleted(id) {
-      if (!savedState.progress.clearedDifficulties.includes(id)) {
-        savedState.progress.clearedDifficulties.push(id);
+    function markDifficultyResult(id, starsEarned, perfect = false) {
+      const bestStars = savedState.progress.bestStarsByDifficulty;
+      bestStars[id] = Math.max(bestStars[id] || 0, clamp(Math.floor(starsEarned), 0, 3));
+      if (perfect && !savedState.progress.perfectDifficulties.includes(id)) {
+        savedState.progress.perfectDifficulties.push(id);
       }
+      if (starsEarned < LEVEL.ratingUnlockStars) {
+        saveProgress();
+        return false;
+      }
+      if (!savedState.progress.clearedDifficulties.includes(id)) savedState.progress.clearedDifficulties.push(id);
       const index = DIFFICULTY_DEFS.findIndex((def) => def.id === id);
       const next = DIFFICULTY_DEFS[index + 1];
+      let unlocked = false;
       if (next && !savedState.progress.unlockedDifficulties.includes(next.id)) {
         savedState.progress.unlockedDifficulties.push(next.id);
         showToast('新难度已解锁', `${next.name} 现在可以选择`, 'gold');
+        unlocked = true;
       }
       saveProgress();
+      return unlocked;
     }
 
     function centerX(z) {
@@ -1967,8 +2017,21 @@
       return best;
     }
 
-    function ratingFor(missionComplete, stars, deaths = 0) {
-      return missionComplete && stars >= LEVEL.aStarTarget && deaths === 0 ? 'A' : 'B';
+    function evaluateSingleRating(stars, damageTaken, elapsed, targetTime) {
+      const collectedThirty = stars >= LEVEL.ratingStarTarget;
+      const noDamage = !damageTaken;
+      const withinTime = elapsed <= targetTime;
+      const mastery = noDamage || withinTime;
+      const starsEarned = collectedThirty ? (mastery ? 3 : 2) : 1;
+      return {
+        stars: starsEarned,
+        collectedStars: stars,
+        collectedThirty,
+        noDamage,
+        withinTime,
+        mastery,
+        perfect: collectedThirty && noDamage && withinTime
+      };
     }
 
     function missionCounterValue(run, missionId) {
@@ -2253,7 +2316,10 @@
       coins: 0,
       mushrooms: 0,
       missionComplete: false,
-      rating: 'B',
+      rating: '0★',
+      ratingStars: 0,
+      ratingConditions: null,
+      damageTaken: false,
       fell: false,
       active: false,
       settled: false,
@@ -2286,6 +2352,9 @@
         squash: 0,
         spinTime: 0,
         spinVelocity: 0,
+        spinMode: '',
+        spinDuration: 0,
+        spinDirection: 1,
         spinRotation: 0,
         spinRotationX: 0,
         balloonTime: 0,
@@ -4936,7 +5005,7 @@
         run.coins = s.run.coins || 0;
         run.mushrooms = s.run.mushrooms || 0;
         run.missionComplete = Boolean(s.run.missionComplete);
-        run.rating = s.run.rating || 'B';
+        run.rating = s.run.rating || '0★';
       }
       (s.collected || []).forEach(netMarkCollected);
       (s.players || []).forEach((ps, index) => { if (players[index]) netApplyPlayerState(players[index], ps); });
@@ -5118,11 +5187,13 @@
         const card = document.createElement('button');
         card.type = 'button';
         const unlocked = isDifficultyUnlocked(def.id);
+        const bestStars = savedState.progress.bestStarsByDifficulty[def.id] || 0;
+        const perfect = savedState.progress.perfectDifficulties.includes(def.id);
         card.className = `difficulty-card${index === cursor ? ' active' : ''}${unlocked ? '' : ' locked'}`;
-        card.innerHTML = `<strong>${def.name}</strong><small>${def.desc}${unlocked ? '' : ' · 需通关前一难度解锁'}</small>`;
+        card.innerHTML = `<strong>${def.name} · ${starText(bestStars)}${perfect ? ' · 完美' : ''}</strong><small>${def.desc}${unlocked ? '' : ` · 需前一难度 ${LEVEL.ratingUnlockStars}★ 解锁`}</small>`;
         card.addEventListener('click', () => {
           game.difficultyCursor = index;
-          if (!unlocked) showToast('难度尚未解锁', '请先通关前一档难度', 'pink');
+          if (!unlocked) showToast('难度尚未解锁', `前一难度达到 ${LEVEL.ratingUnlockStars}★ 后解锁`, 'pink');
           renderDifficultyPanel();
         });
         card.addEventListener('dblclick', () => {
@@ -5142,7 +5213,7 @@
     function confirmDifficulty() {
       const def = DIFFICULTY_DEFS[clamp(game.difficultyCursor || 0, 0, DIFFICULTY_DEFS.length - 1)];
       if (!isDifficultyUnlocked(def.id)) {
-        showToast('难度尚未解锁', '请先通关前一档难度', 'pink');
+        showToast('难度尚未解锁', `前一难度达到 ${LEVEL.ratingUnlockStars}★ 后解锁`, 'pink');
         return;
       }
       game.difficulty = def.id;
@@ -5323,6 +5394,9 @@
       p.squash = 0;
       p.spinTime = 0;
       p.spinVelocity = 0;
+      p.spinMode = '';
+      p.spinDuration = 0;
+      p.spinDirection = 1;
       p.spinRotation = 0;
       p.spinRotationX = 0;
       p.balloonTime = 0;
@@ -5562,6 +5636,7 @@
       if (game.iframeTimer > 0 || player.recoveryTime > 0 || isPlayerInvincible(player)) return false;
       const def = difficultyDef(game.difficulty);
       player.hearts = Math.max(0, (player.hearts || 0) - amount);
+      run.damageTaken = true;
       game.iframeTimer = def.iframe;
       game.shake = 0;
       player.vx += (Math.random() < 0.5 ? -1 : 1) * 4.5;
@@ -5595,6 +5670,9 @@
       player.forwardBonus = 0;
       player.balloonTime = 0;
       player.spinTime = 0;
+      player.spinMode = '';
+      player.spinDuration = 0;
+      player.spinRotation = 0;
       if (player.model) player.model.balloonShell.visible = false;
       clearProjectiles();
       clearPowerProjectiles();
@@ -5685,7 +5763,10 @@
       run.coins = 0;
       run.mushrooms = 0;
       run.missionComplete = false;
-      run.rating = 'B';
+      run.rating = '0★';
+      run.ratingStars = 0;
+      run.ratingConditions = null;
+      run.damageTaken = false;
       run.fell = false;
       run.active = false;
       run.finishing = false;
@@ -6080,8 +6161,6 @@
       if (hasEffect(p, 'roll')) multiplier *= BUFF_DEFS.roll.multiplier;
       if (hasEffect(p, 'dash')) multiplier *= BUFF_DEFS.dash.multiplier;
       if (hasEffect(p, 'invincible') && effectiveSkillFor(p).id === 'guard') multiplier *= 1.1;
-      const giantStack = giantStacks(p);
-      if (giantStack > 0) multiplier *= Math.pow(0.85, giantStack);
       if (p.chargeTime > 0 && p.chargeKind === 'roll') multiplier *= effectiveSkillFor(p).speed;
       return clamp(multiplier, 0.5, 2);
     }
@@ -6228,7 +6307,7 @@
 
     function isPlayerInvincible(p) {
       return hasEffect(p, 'invincible') ||
-        (game.mode === 'single' && hasEffect(p, 'giantSkill')) ||
+        (game.mode === 'single' && (hasEffect(p, 'giantSkill') || hasEffect(p, 'giant'))) ||
         (p.chargeKind === 'roll' && p.chargeTime > 0 && (p.upgradeLevel || 0) >= 2);
     }
 
@@ -6922,7 +7001,9 @@
     }
 
     function updateHud() {
-      dom.starCount.textContent = String(game.mode === 'duo' ? players[0].stars : run.stars);
+      dom.starCount.textContent = game.mode === 'duo'
+        ? String(players[0].stars)
+        : `${Math.min(run.stars, LEVEL.ratingStarTarget)}/${LEVEL.ratingStarTarget}`;
       dom.coinCount.textContent = String(game.mode === 'duo' ? players[0].coins : run.coins);
       dom.mushroomCount.textContent = String(game.mode === 'duo' ? players[0].mushrooms : run.mushrooms);
       dom.starCount2.textContent = String(players[1].stars);
@@ -6941,6 +7022,11 @@
       dom.missionProgress.textContent = progress.label;
       dom.missionProgress.classList.toggle('done', progress.complete);
       const journey = clamp(player.z / LEVEL.finishLine, 0, 1);
+      if (dom.runTimer) {
+        dom.runTimer.textContent = game.mode === 'single'
+          ? `${formatTime(game.elapsed)} / ${formatTime(difficultyDef(game.difficulty).targetTime)}`
+          : '竞速';
+      }
       dom.progressText.textContent = `${Math.round(journey * 100)}%`;
       dom.progressFill.style.width = `${(journey * 100).toFixed(1)}%`;
       const p1Ratio = clamp(players[0].z / LEVEL.finishLine, 0, 1);
@@ -7047,6 +7133,9 @@
       p.sheepTotal = 0;
       p.balloonTime = 0;
       p.spinTime = 0;
+      p.spinMode = '';
+      p.spinDuration = 0;
+      p.spinRotation = 0;
       p.recoveryTime = 0;
       p.inkAmount = 0;
       if (p.model) p.model.balloonShell.visible = false;
@@ -7133,6 +7222,7 @@
       run.fell = true;
       if (game.difficulty !== 'nap') {
         player.hearts = Math.max(0, (player.hearts || 0) - 1);
+        run.damageTaken = true;
         if (player.hearts <= 0) {
           failSingleRun();
           return;
@@ -7344,10 +7434,22 @@
 
       if (p.spinTime > 0) {
         p.spinTime = Math.max(0, p.spinTime - dt);
-        p.spinRotation += p.spinVelocity * dt;
-        p.spinVelocity *= Math.exp(-1.35 * dt);
+        if (p.spinMode === 'fullTurn') {
+          const duration = Math.max(0.001, p.spinDuration || 0.55);
+          const progress = clamp(1 - p.spinTime / duration, 0, 1);
+          p.spinRotation = p.spinDirection * Math.PI * 2 * progress;
+          p.spinVelocity = 0;
+          if (p.spinTime <= 0) {
+            p.spinRotation = 0;
+            p.spinMode = '';
+          }
+        } else {
+          p.spinRotation += p.spinVelocity * dt;
+          p.spinVelocity *= Math.exp(-1.35 * dt);
+        }
       } else {
         p.spinVelocity = 0;
+        if (p.spinMode !== 'fullTurn') p.spinMode = '';
         p.spinRotation = lerp(p.spinRotation, 0, 1 - Math.exp(-5.5 * dt));
       }
 
@@ -7422,8 +7524,12 @@
             p.vx = direction * rand(3.0, 5.2);
             p.grounded = false;
             p.jumpsUsed = 1;
-            p.spinTime = 1.55;
-            p.spinVelocity = direction * 10.5;
+            p.spinTime = 0.55;
+            p.spinDuration = 0.55;
+            p.spinMode = 'fullTurn';
+            p.spinDirection = inputX !== 0 ? Math.sign(inputX) : direction;
+            p.spinVelocity = 0;
+            p.spinRotation = 0;
             obstacle.cooldown = 1.0;
             obstacle.impactTime = 0.28;
             spawnBurst(new THREE.Vector3(obstacle.x, obstacle.topY, obstacle.z), 0xcdb4ff, 16, 6.6, 0.95);
@@ -7549,6 +7655,9 @@
       player.grounded = true;
       player.balloonTime = 0;
       player.spinTime = 0;
+      player.spinMode = '';
+      player.spinDuration = 0;
+      player.spinRotation = 0;
       if (player.model) player.model.balloonShell.visible = false;
       game.celebrationTime = 0;
       setPhase('celebrating');
@@ -7560,26 +7669,35 @@
     function settleSingleRun() {
       if (run.settled) return;
       run.settled = true;
-      if (hasTalent('b4')) {
-        player.stars += 2;
-        run.stars += 2;
-      }
+      const collectedStars = run.stars;
       const progress = missionProgress(run, run.missionId);
       run.missionComplete = progress.complete;
-      run.rating = ratingFor(run.missionComplete, run.stars, run.deaths);
+      const rating = evaluateSingleRating(collectedStars, run.damageTaken, game.elapsed, difficultyDef(game.difficulty).targetTime);
+      run.ratingConditions = rating;
+      run.ratingStars = rating.stars;
+      run.rating = starText(rating.stars);
+      const bonusStars = hasTalent('b4') ? 2 : 0;
+      if (bonusStars > 0) {
+        player.stars += bonusStars;
+        run.stars += bonusStars;
+      }
       savedState.stats.totalStars += run.stars;
       savedState.stats.starCoins += run.stars;
       savedState.stats.totalCoins += run.coins;
       savedState.stats.totalMushrooms += run.mushrooms;
       savedState.stats.totalRuns += 1;
-      savedState.stats.bestStars = Math.max(savedState.stats.bestStars, run.stars);
+      savedState.stats.bestStars = Math.max(savedState.stats.bestStars, collectedStars);
       savedState.stats.lastRating = run.rating;
+      if (rating.perfect) {
+        savedState.stats.starCoins += 5;
+        showToast('完美梦境', '+5 星币', 'gold');
+      }
       saveStats();
       recordPlayedRun();
-      markDifficultyCompleted(game.difficulty);
-      let points = run.rating === 'A' ? 2 : 1;
+      markDifficultyResult(game.difficulty, rating.stars, rating.perfect);
+      let points = rating.stars;
       if (run.missionId === 'mushrooms' && run.missionComplete) points += 1;
-      awardTalentPoints(points, `单人 ${run.rating} 级评价`);
+      awardTalentPoints(points, `单人 ${run.rating} 评价`);
       updateTitleStats();
     }
 
@@ -7636,7 +7754,7 @@
       setPhase('result');
       if (game.mode === 'single' && run.gameOver) {
         dom.resultEyebrow.textContent = '挑战失败';
-        dom.ratingBadge.textContent = '×';
+        dom.ratingBadge.textContent = '☆☆☆';
         dom.resultMessage.textContent = '梦境暂时中断，你醒了。';
         dom.resultTask.textContent = '本局已结算当前获得的金币和星币。';
         dom.resultStars.textContent = String(run.stars);
@@ -7665,20 +7783,24 @@
         dom.changeHat.disabled = false;
         return;
       }
-      const successful = run.missionComplete;
+      const rating = run.ratingConditions || evaluateSingleRating(run.stars, run.damageTaken, game.elapsed, difficultyDef(game.difficulty).targetTime);
+      const timeTarget = difficultyDef(game.difficulty).targetTime;
       dom.resultEyebrow.textContent = '梦境小径完成';
-      dom.ratingBadge.textContent = run.rating;
-      dom.resultMessage.textContent = run.rating === 'A'
-        ? '真棒！任务和星光都圆满带回来了。'
-        : successful ? '任务完成，轻松完赛！再跑一次还能发现更多星光。' : '完赛本身就是很棒的旅程，下一次再慢慢收集吧。';
-      dom.resultTask.textContent = successful
-        ? `本局任务完成：${TASKS[run.missionId].label}`
-        : `本局任务还差一点：${TASKS[run.missionId].label}`;
+      dom.ratingBadge.textContent = starText(rating.stars);
+      dom.resultMessage.textContent = rating.stars === 3
+        ? '三星完美！梦境被完整地带回来了。'
+        : rating.stars === 2 ? '双星达成，再完成一项挑战就能完美。' : '回到梦境就是一次新的开始。';
+      dom.resultTask.innerHTML = [
+        `1★ 完成赛道 <strong>${rating.stars >= 1 ? '✓' : '—'}</strong>`,
+        `2★ 收集 ${LEVEL.ratingStarTarget} 星 <strong>${Math.min(rating.collectedStars, LEVEL.ratingStarTarget)}/${LEVEL.ratingStarTarget} ${rating.collectedThirty ? '✓' : '×'}</strong>`,
+        `3★ 无伤或限时 ${formatTime(game.elapsed)} / ${formatTime(timeTarget)} <strong>${rating.collectedThirty && rating.mastery ? '✓' : '×'}</strong>`
+      ].join('<br>');
       dom.resultStars.textContent = String(run.stars);
       dom.resultCoins.textContent = String(run.coins);
       dom.resultMushrooms.textContent = String(run.mushrooms);
       dom.resultGrid2.innerHTML = '';
-      dom.unlockMessage.textContent = `难度 ${difficultyDef(game.difficulty).name} · 阵亡 ${run.deaths} 次 · 本局星币 +${run.stars} · 星币余额 ${savedState.stats.starCoins}。`;
+      const bestStars = savedState.progress.bestStarsByDifficulty[game.difficulty] || 0;
+      dom.unlockMessage.textContent = `难度 ${difficultyDef(game.difficulty).name} · 本局 ${rating.stars}/3★ · 历史最佳 ${bestStars}/3★ · 本局星币 +${run.stars}${rating.perfect ? ' + 完美奖励 5' : ''} · 星币余额 ${savedState.stats.starCoins}。`;
       dom.changeHat.disabled = false;
     }
 
@@ -7834,6 +7956,13 @@
         scale * recoveryScale * (1 + recoverySquash * 0.55)
       );
       model.visual.rotation.z = -p.vx * (hasEffect(p, 'reverse') ? -0.012 : 0.012) + p.spinRotation;
+      if (p.spinRotation) {
+        const spinCenterY = 1.65 * model.visual.scale.y;
+        model.visual.position.x = Math.sin(p.spinRotation) * spinCenterY;
+        model.visual.position.y += (1 - Math.cos(p.spinRotation)) * spinCenterY;
+      } else {
+        model.visual.position.x = 0;
+      }
       if (hasEffect(p, 'roll')) model.visual.rotation.x += dt * 7.5;
       if (p.chargeTime > 0 && p.chargeKind === 'roll') {
         const rollProgress = 1 - p.chargeTime / Math.max(0.001, p.chargeTotal);
@@ -7892,18 +8021,21 @@
 
     function updateFollowCamera(cam, p, desired, look, dt, fov, base, lookBase, snap = false) {
       if (!cam || !desired || !look) return;
+      const groundY = surfaceYAt(p.x, p.z) ?? pathY(p.z);
+      const anchorY = groundY * 0.85 + p.y * 0.15;
       desired.set(
         p.x * 0.52 + centerX(p.z) * 0.48,
-        p.y + 7.3 + clamp(p.vy * 0.09, -0.8, 1.5),
+        anchorY + 7.3,
         p.z - 13.5
       );
-      look.set(p.x * 0.6 + centerX(p.z) * 0.4, p.y + 2.3, p.z + 9.5);
+      look.set(p.x * 0.6 + centerX(p.z) * 0.4, anchorY + 2.3, p.z + 9.5);
       if (!base) return;
       if (snap) base.copy(desired);
       else base.lerp(desired, 1 - Math.exp(-dt * 6.5));
       world.cameraFollowLag = Math.max(world.cameraFollowLag || 0, base.distanceTo(desired));
       if (!lookBase) return;
-      lookBase.copy(look);
+      if (snap) lookBase.copy(look);
+      else lookBase.lerp(look, 1 - Math.exp(-dt * 4.5));
       cam.position.copy(base);
       cam.fov = fov;
       cam.lookAt(lookBase);
@@ -8000,16 +8132,21 @@
         const a = players[0];
         const b = players[1];
         const midX = (a.x + b.x) * 0.5;
-        const midY = (a.y + b.y) * 0.5;
         const midZ = (a.z + b.z) * 0.5;
+        const groundA = surfaceYAt(a.x, a.z) ?? pathY(a.z);
+        const groundB = surfaceYAt(b.x, b.z) ?? pathY(b.z);
+        const anchorA = groundA * 0.85 + a.y * 0.15;
+        const anchorB = groundB * 0.85 + b.y * 0.15;
+        const anchorY = (anchorA + anchorB) * 0.5;
         const separation = Math.abs(a.z - b.z);
         const distance = 14.5 + clamp(separation * 0.045, 0, 5.5);
-        world.cameraDesired.set(midX, midY + 7.6 + clamp(separation * 0.01, 0, 2), midZ - distance);
-        world.cameraLook.set(midX, midY + 2.4, midZ + 10 + separation * 0.02);
+        world.cameraDesired.set(midX, anchorY + 7.6 + clamp(separation * 0.01, 0, 2), midZ - distance);
+        world.cameraLook.set(midX, anchorY + 2.4, midZ + 10 + separation * 0.02);
         if (snapCamera) world.cameraBase.copy(world.cameraDesired);
         else world.cameraBase.lerp(world.cameraDesired, factor);
         world.cameraFollowLag = Math.max(world.cameraFollowLag || 0, world.cameraBase.distanceTo(world.cameraDesired));
-        world.cameraLookBase.copy(world.cameraLook);
+        if (snapCamera) world.cameraLookBase.copy(world.cameraLook);
+        else world.cameraLookBase.lerp(world.cameraLook, 1 - Math.exp(-dt * 4.5));
         camera.position.copy(world.cameraBase);
         camera.fov = 60 + clamp(separation * 0.025, 0, 7);
       } else {
@@ -8207,6 +8344,7 @@
               stamina: p.stamina, skillDelay: p.skillDelay, questionCharges: p.questionCharges,
               bumpTime: p.bumpTime, skillCooldown: p.skillCooldown, chargeTime: p.chargeTime,
               chargeKind: p.chargeKind, sheepTime: p.sheepTime, forwardBonus: p.forwardBonus,
+              spinTime: p.spinTime, spinMode: p.spinMode, spinRotation: p.spinRotation,
               forwardSpeed: p.forwardSpeed, upgradeLevel: p.upgradeLevel || 0,
               edgeGraceTime: p.edgeGraceTime || 0,
               invincibleGold: Boolean(p.model && p.model.invincibleMaterialsActive),
@@ -8221,7 +8359,17 @@
               visualHidden: Boolean(p.model && p.model.visual && !p.model.visual.visible),
               modelKind: p.model && p.model.gltfRoot ? 'gltf' : 'procedural'
             })),
-            run: { stars: run.stars, coins: run.coins, mushrooms: run.mushrooms, fell: run.fell, gameOver: run.gameOver, deathSettled: run.deathSettled },
+            run: {
+              stars: run.stars,
+              coins: run.coins,
+              mushrooms: run.mushrooms,
+              fell: run.fell,
+              gameOver: run.gameOver,
+              deathSettled: run.deathSettled,
+              ratingStars: run.ratingStars,
+              ratingConditions: run.ratingConditions ? clone(run.ratingConditions) : null,
+              damageTaken: run.damageTaken
+            },
             gameOver: run.gameOver,
             progress: clone(savedState.progress),
             characterUnlocks: clone(savedState.characters.unlocked),
@@ -8601,11 +8749,13 @@
           const checks = [
             ['visual A is screen-left', visualInputAxis({ left: true, right: false }) === 1],
             ['visual D is screen-right', visualInputAxis({ left: false, right: true }) === -1],
-            ['A rating boundary', ratingFor(true, LEVEL.aStarTarget) === 'A'],
-            ['B below star boundary', ratingFor(true, LEVEL.aStarTarget - 1) === 'B'],
-            ['death caps rating at B', ratingFor(true, LEVEL.aStarTarget, 1) === 'B'],
+            ['one star on finish', evaluateSingleRating(0, true, 999, 100).stars === 1],
+            ['two stars with collection', evaluateSingleRating(LEVEL.ratingStarTarget, true, 999, 100).stars === 2],
+            ['three stars with mastery', evaluateSingleRating(LEVEL.ratingStarTarget, false, 100, 100).stars === 3],
+            ['perfect mastery reward', evaluateSingleRating(LEVEL.ratingStarTarget, false, 90, 100).perfect],
             ['four difficulties', DIFFICULTY_DEFS.length === 4 && DIFFICULTY_DEFS[0].id === 'nap' && DIFFICULTY_DEFS[3].id === 'nightmare'],
             ['doubled difficulty values', DIFFICULTY_DEFS.every((def, index) => def.speed === [1.7, 2, 2.4, 2.7][index] && def.enemyMax === [2, 4, 8, 12][index] && def.bullets === [2, 6, 12, 18][index])],
+            ['difficulty time targets', DIFFICULTY_DEFS.map((def) => def.targetTime).join(',') === '150,125,105,90'],
             ['difficulty fallback', difficultyDef('invalid').id === 'nap'],
             ['settings difficulty fallback', normalizeSettings({ difficulty: 'invalid' }).difficulty === 'nap'],
             ['character unlock costs', CHARACTER_UNLOCK_COSTS.rogue === 300 && CHARACTER_UNLOCK_COSTS.knight === 600],
@@ -8629,8 +8779,8 @@
             ['active bonus pads standable', world.cloudPads.filter((pad) => pad.active).every((pad) => surfaceYAt(pad.x, pad.z, pad.topY + 0.5) === pad.topY)],
             ['doubled obstacle inventory', world.obstacles.length >= 149],
             ['powerup inventory', world.powerups.length === 54],
-            ['nine buffs', Object.keys(BUFF_DEFS).length === 9],
-            ['four traps', Object.keys(TRAP_DEFS).length === 4],
+            ['ten buffs', Object.keys(BUFF_DEFS).length === 10],
+            ['three traps', Object.keys(TRAP_DEFS).length === 3],
             ['nine talents', TALENT_DEFS.length === 9],
             ['four characters', CHARACTER_DEFS.length === 4],
             ['six mode skills', Object.keys(CHARACTER_SKILLS).length === 6],
@@ -8652,7 +8802,8 @@
             ['camera shake disabled', game.shake === 0],
             ['camera look smoothing ready', Boolean(world.cameraLookBase && world.cameraLookBase2)],
             ['split screen cooldown ready', typeof game.splitCooldown === 'number' && game.splitCooldown >= 0],
-            ['trap cap documented', Object.keys(TRAP_DEFS).length <= 4],
+            ['trap cap documented', Object.keys(TRAP_DEFS).length <= 3],
+            ['legacy cleared difficulty migrates to two stars', normalizeProgress({ clearedDifficulties: ['nap'] }, { difficulty: 'nap' }, 0).bestStarsByDifficulty.nap === 2],
             ['storage normalization', normalizeStats({ totalStars: -2 }).totalStars === 0],
             ['star coin migration', normalizeStats({ totalStars: 88 }).starCoins === 88],
             ['upgrade normalization', normalizeUpgrades({ knight: 9, mage: -2 }).knight === 3 && normalizeUpgrades({ knight: 9, mage: -2 }).mage === 0],
