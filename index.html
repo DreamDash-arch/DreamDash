@@ -39,7 +39,6 @@
     }
 
     button { font: inherit; }
-
     #app, #canvasHost {
       position: fixed;
       inset: 0;
@@ -1517,6 +1516,272 @@
     body.low-fx #splashScreen .s-fly,
     body.low-fx .title-logo { animation: none; }
 
+    /* ===================== 栅格糖果 UI v2 ===================== */
+    #candyLayer { display: none !important; }
+
+    #splashScreen {
+      isolation: isolate;
+      background: #f7d9e9;
+    }
+    #splashScreen .splash-stage {
+      z-index: 1;
+      overflow: hidden;
+      animation: splashKenBurns 26s ease-in-out infinite alternate;
+    }
+    #splashScreen .splash-photo {
+      position: absolute;
+      inset: 0;
+      object-fit: fill;
+      z-index: 1;
+    }
+    #splashScreen .splash-raster-layer {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 4;
+      transform: translate3d(calc(var(--px, 0) * 10px), calc(var(--py, 0) * 8px), 0);
+      transition: transform 380ms ease-out;
+    }
+    #splashScreen .splash-raster-layer img,
+    #splashScreen .s-fly {
+      position: absolute;
+      display: block;
+      height: auto;
+      object-fit: contain;
+      filter: drop-shadow(0 14px 24px rgba(136, 77, 147, .28));
+      will-change: transform;
+    }
+    #splashScreen .splash-raster-front { z-index: 10; }
+    #splashScreen .splash-candy {
+      pointer-events: auto;
+      cursor: pointer;
+      transition: filter 180ms ease, transform 180ms ease;
+    }
+    #splashScreen .splash-candy:hover {
+      filter: drop-shadow(0 18px 28px rgba(136, 77, 147, .42)) brightness(1.06);
+      transform: scale(1.05) rotate(2deg);
+    }
+    #splashScreen .splash-candy:active { transform: scale(.94); }
+    #splashScreen .splash-raster-back img:first-child { left: -4%; top: 11%; width: 31%; opacity: .62; }
+    #splashScreen .splash-raster-back img:last-child { right: -2%; top: 15%; width: 25%; opacity: .62; }
+    #splashScreen .splash-raster-front img:first-child { left: 2%; bottom: 1%; width: 16%; opacity: .82; }
+    #splashScreen .splash-raster-front img:last-child { left: auto; right: 6%; bottom: 24%; width: 9%; opacity: .82; }
+    #splashScreen .splash-logo {
+      z-index: 20;
+      pointer-events: none;
+      filter: drop-shadow(0 16px 22px rgba(125, 54, 128, .25));
+    }
+    #splashScreen .splash-deco {
+      z-index: 8;
+      transform: translate3d(calc(var(--px, 0) * 15px), calc(var(--py, 0) * 12px), 0);
+    }
+    #splashScreen .s-fly { opacity: .82; }
+    #splashScreen .s-1 { left: 12%; top: 12%; width: 3.8%; }
+    #splashScreen .s-2 { right: 12%; top: 21%; width: 3.6%; }
+    #splashScreen .s-3 { left: 27%; bottom: 16%; width: 7.2%; }
+    #splashScreen .s-4 { right: 23%; bottom: 23%; width: 3.3%; }
+    #splashScreen .s-5 { left: 48%; top: 8%; width: 2.8%; }
+    #splashScreen .splash-hint {
+      z-index: 30;
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      border: 1px solid rgba(255,255,255,.65);
+      background: rgba(255, 248, 252, .66);
+      box-shadow: 0 14px 30px rgba(107, 57, 126, .24), inset 0 1px 0 #fff;
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+    }
+    .hint-spark { color: #f5b949; font-size: 13px; }
+
+    #titleScreen {
+      z-index: 60;
+      padding: 0;
+      overflow: hidden;
+      isolation: isolate;
+      background: transparent;
+    }
+    .home-stage {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      background: transparent;
+      isolation: isolate;
+    }
+    .home-stage::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      pointer-events: none;
+      background: linear-gradient(180deg, rgba(52, 26, 89, .08), transparent 38%, rgba(67, 34, 93, .16));
+    }
+    .home-copy {
+      position: absolute;
+      inset: 0;
+      z-index: 20;
+      text-align: center;
+      pointer-events: none;
+    }
+    .home-eyebrow {
+      position: absolute;
+      left: 50%;
+      top: 3.3vh;
+      transform: translateX(-50%);
+      display: inline-flex;
+      padding: 7px 18px;
+      border: 1px solid rgba(255,255,255,.7);
+      border-radius: 999px;
+      background: rgba(255, 246, 252, .56);
+      box-shadow: 0 10px 24px rgba(113, 63, 130, .16), inset 0 1px 0 #fff;
+      color: #754b87;
+      font-size: clamp(11px, 1.2vw, 15px);
+      font-weight: 900;
+      letter-spacing: .16em;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+    #titleScreen .title-logo {
+      position: absolute;
+      left: 21.067%;
+      top: 15%;
+      z-index: 24;
+      width: 55.478%;
+      margin: 0;
+      filter: drop-shadow(0 15px 24px rgba(124, 55, 130, .34));
+    }
+    .home-entry {
+      position: absolute;
+      left: 50%;
+      bottom: 10vh;
+      z-index: 18;
+      width: min(520px, 78vw);
+      transform: translateX(-50%);
+      text-align: center;
+      transition: transform 260ms cubic-bezier(.2,.75,.2,1), filter 260ms ease;
+    }
+    .entry-platform {
+      position: absolute;
+      left: 50%;
+      bottom: -12px;
+      width: 112%;
+      height: 78px;
+      transform: translateX(-50%);
+      border-radius: 50%;
+      background:
+        radial-gradient(ellipse at center, rgba(255, 255, 255, .72) 0 30%, rgba(255, 255, 255, .32) 52%, transparent 74%);
+      filter: blur(5px);
+      opacity: .72;
+      pointer-events: none;
+      transition: opacity 260ms ease, transform 260ms cubic-bezier(.2,.75,.2,1);
+    }
+    .home-entry > :not(.entry-platform) { position: relative; }
+    .home-entry:hover {
+      transform: translate(-50%, -4px);
+      filter: drop-shadow(0 18px 24px rgba(117, 67, 138, .2));
+    }
+    .home-entry:hover .entry-platform {
+      opacity: .96;
+      transform: translateX(-50%) scale(1.05);
+    }
+    .home-stage.home-leaving .home-copy,
+    .home-stage.home-leaving .home-entry,
+    .home-stage.home-leaving .home-hotspots,
+    .home-stage.home-leaving .home-stats {
+      opacity: 0;
+      transition: opacity 220ms ease, transform 220ms ease;
+    }
+    .home-stage.home-leaving .home-copy { transform: translateY(-8px); }
+    .home-stage.home-leaving .home-entry { transform: translate(-50%, 12px) scale(.97); }
+    .home-stage.home-leaving .home-hotspots { transform: scale(.98); }
+    }
+    .entry-actions {
+      display: grid;
+      grid-template-columns: 1.1fr 1fr .9fr;
+      gap: 10px;
+      margin: 0;
+    }
+    .entry-actions .btn { min-width: 0; padding: 13px 12px; border-radius: 20px; }
+    .entry-main { font-size: 19px; }
+    .entry-duo { background: linear-gradient(180deg, #ffe5f2, #ee94c4); }
+    .entry-lan { background: linear-gradient(180deg, #f4edff, #c9b8f6); }
+    .home-secondary {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      margin-top: 12px;
+    }
+    .home-link {
+      padding: 4px 2px;
+      border: 0;
+      color: #754b87;
+      background: transparent;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 850;
+      text-shadow: 0 1px 0 rgba(255,255,255,.8);
+    }
+    .home-link:hover { color: #e15e9f; transform: translateY(-1px); }
+    .home-stats {
+      position: absolute;
+      left: 50%;
+      bottom: 3.2vh;
+      z-index: 18;
+      width: min(820px, 82vw);
+      transform: translateX(-50%);
+      gap: 7px;
+    }
+    .home-stats .stat-pill { padding: 6px 10px; border-color: rgba(80,49,105,.22); background: rgba(255,255,255,.42); font-size: 12px; }
+    .home-hotspots { position: absolute; inset: 0; z-index: 25; pointer-events: none; }
+    .home-hotspot {
+      position: absolute;
+      width: 72px;
+      height: 72px;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      cursor: pointer;
+      pointer-events: auto;
+      filter: drop-shadow(0 10px 14px rgba(119,65,137,.25));
+      animation: hotspotFloat 5.2s ease-in-out infinite;
+    }
+    .home-hotspot img { display: block; width: 100%; height: 100%; object-fit: contain; }
+    .home-hotspot:hover { filter: drop-shadow(0 14px 22px rgba(119,65,137,.42)) brightness(1.06); }
+    .home-hotspot:active { transform: scale(.9); }
+    .hotspot-star { left: 21%; top: 46%; width: 62px; height: 62px; animation-delay: -.7s; }
+    .hotspot-heart { right: 20%; top: 42%; width: 56px; height: 56px; animation-delay: -2.1s; }
+    .hotspot-macaron { left: 9%; bottom: 11%; width: 86px; height: 78px; animation-delay: -3.5s; }
+    @keyframes hotspotFloat { 0%,100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-9px) rotate(3deg); } }
+    .home-burst { position: fixed; z-index: 120; width: 22px; height: 22px; pointer-events: none; object-fit: contain; animation: homeBurst 720ms cubic-bezier(.2,.75,.2,1) forwards; }
+    @keyframes homeBurst { from { opacity: 1; transform: translate(-50%,-50%) scale(.35) rotate(0); } to { opacity: 0; transform: translate(calc(-50% + var(--bx)), calc(-50% + var(--by))) scale(1) rotate(var(--br)); } }
+    @media (max-width: 760px) {
+      #splashScreen .splash-stage { width: 100vw; height: 100vh; animation: none; }
+      #splashScreen .splash-photo { object-fit: cover; }
+      #splashScreen .splash-logo { left: 7%; top: 22%; width: 86%; }
+      .home-eyebrow { top: 3vh; }
+      #titleScreen .title-logo { left: 8%; top: 14%; width: 84%; }
+      .home-eyebrow { letter-spacing: .08em; }
+      .home-entry { bottom: 12vh; width: 92vw; }
+      .entry-actions { grid-template-columns: 1fr; gap: 7px; }
+      .entry-actions .btn { padding: 10px 12px; }
+      .home-stats { display: none; }
+      .hotspot-star { left: 5%; top: 38%; }
+      .hotspot-heart { right: 5%; top: 34%; }
+      .hotspot-macaron { left: 3%; bottom: 7%; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .home-hotspot { animation: none; }
+      .home-entry,
+      .entry-platform,
+      .home-stage.home-leaving .home-copy,
+      .home-stage.home-leaving .home-entry,
+      .home-stage.home-leaving .home-hotspots,
+      .home-stage.home-leaving .home-stats { transition: none; }
+    }
+    body.low-fx .home-hotspot,
+    body.low-fx .home-entry,
+    body.low-fx .entry-platform { animation: none; transition: none; }
+
   </style>
 </head>
 <body>
@@ -1683,40 +1948,52 @@
 
     <section id="splashScreen" class="screen">
       <div class="splash-stage">
-        <img class="splash-photo" src="assets/开场画面.webp" alt="">
-        <img class="splash-logo" src="assets/标题logo.webp" alt="">
+        <img class="splash-photo" src="assets/ui-raster/opening-background-no-title.webp" alt="">
+        <div class="splash-raster-layer splash-raster-back" aria-hidden="true">
+          <img src="assets/ui-raster/cloud-left.png" alt="">
+          <img src="assets/ui-raster/cloud-right.png" alt="">
+        </div>
+        <div class="splash-raster-layer splash-raster-front" aria-hidden="true">
+          <img class="splash-candy" data-home-hotspot="heart" src="assets/ui-raster/lollipop-pink.png" alt="">
+          <img class="splash-candy" data-home-hotspot="heart" src="assets/ui-raster/heart-pink.png" alt="">
+        </div>
+        <img class="splash-logo" src="assets/标题logo.webp?v=20261020-redraw" alt="">
       </div>
-      <div class="splash-sweep" aria-hidden="true"></div>
       <div class="splash-deco" aria-hidden="true">
-        <svg class="s-fly s-1" viewBox="0 0 100 100"><use href="#c-coin"/></svg>
-        <svg class="s-fly s-2" viewBox="0 0 100 100"><use href="#c-star"/></svg>
-        <svg class="s-fly s-3" viewBox="0 0 100 100"><use href="#c-heart"/></svg>
-        <svg class="s-fly s-4" viewBox="0 0 100 100"><use href="#c-coin"/></svg>
-        <svg class="s-fly s-5" viewBox="0 0 100 100"><use href="#c-star"/></svg>
+        <img class="s-fly s-1" src="assets/ui-raster/star-yellow.png" alt="">
+        <img class="s-fly s-2" src="assets/ui-raster/heart-pink.png" alt="">
+        <img class="s-fly s-3" src="assets/ui-raster/heart-pink.png" alt="">
+        <img class="s-fly s-4" src="assets/ui-raster/star-yellow.png" alt="">
+        <img class="s-fly s-5" src="assets/ui-raster/heart-pink.png" alt="">
       </div>
-      <div class="splash-hint">按任意键开始</div>
+      <div class="splash-hint"><span class="hint-spark">✦</span>按任意键继续<span class="hint-spark">✦</span></div>
     </section>
 
     <section id="titleScreen" class="screen">
-      <div class="glass">
-        <div class="eyebrow">高速无失败的双人云海派对</div>
-        <img id="titleLogo" class="title-logo" src="assets/标题logo.webp" alt="梦幻跑跑" draggable="false">
-        <p class="subtitle">速度提升到三倍，空中云路、十种增益和三种捣蛋道具已经加入。单人轻松跑，或和朋友抢同一批道具冲过终点。</p>
-        <div class="stats-line">
+      <div class="home-stage">
+        <div class="home-copy">
+          <div class="home-eyebrow">云端双人派对 · 彩虹入口已开启</div>
+          <img id="titleLogo" class="title-logo" src="assets/标题logo.webp?v=20261020-redraw" alt="梦幻跑跑" draggable="false">
+        </div>
+        <div class="home-entry">
+          <div class="entry-platform" aria-hidden="true"></div>
+          <div class="entry-actions title-actions">
+            <button id="singleBtn" class="btn primary entry-main" type="button">单人跑跑</button>
+            <button id="duoBtn" class="btn primary entry-duo" type="button">双人竞速</button>
+            <button id="lanBtn" class="btn ghost entry-lan" type="button">联机房间</button>
+          </div>
+          <div class="home-secondary">
+            <button id="talentBtn" class="home-link" type="button">天赋</button>
+            <button id="skinMenuBtn" class="home-link" type="button">角色</button>
+            <button id="contactBtn" class="home-link" type="button">联系作者</button>
+          </div>
+        </div>
+        <div class="home-stats stats-line">
           <span class="stat-pill">累计星星 <strong id="titleTotalStars">0</strong></span>
           <span class="stat-pill">角色星币 <strong id="titleStarCoins">0</strong></span>
           <span class="stat-pill">完成 <strong id="titleTotalRuns">0</strong> 局</span>
           <span class="stat-pill">最佳单局 <strong id="titleBestStars">0</strong> 星</span>
         </div>
-        <div class="title-actions">
-          <button id="singleBtn" class="btn primary" type="button">单人模式</button>
-          <button id="duoBtn" class="btn primary" type="button">双人竞速</button>
-          <button id="talentBtn" class="btn ghost" type="button">天赋</button>
-          <button id="skinMenuBtn" class="btn ghost" type="button">角色</button>
-          <button id="lanBtn" class="btn ghost wide" type="button">局域网联机</button>
-          <button id="contactBtn" class="btn ghost wide" type="button">联系作者</button>
-        </div>
-        <div class="mini-note">P1：A/D + W　·　P2：←/→ 移动，↑ 跳跃，↓ 技能</div>
       </div>
     </section>
 
@@ -1861,6 +2138,22 @@
       </div>
     </section>
   </div>
+
+  <script>
+    // file:// 无法可靠加载 Three.js 模块、GLTFLoader 与场景纹理。
+    if (window.location.protocol === 'file:') {
+      const loading = document.getElementById('loadingScreen');
+      if (loading) {
+        const title = loading.querySelector('h2');
+        const subtitle = loading.querySelector('.subtitle');
+        const loader = loading.querySelector('.loader');
+        if (title) title.textContent = '请通过本地 HTTP 启动';
+        if (subtitle) subtitle.textContent = '不要双击 index.html。请双击“启动服务器.command”，再打开 http://127.0.0.1:8000/';
+        if (loader) loader.style.display = 'none';
+      }
+      window.__DREAMDASH_FILE_MODE__ = true;
+    }
+  </script>
 
   <script type="importmap">
   {
@@ -2673,6 +2966,137 @@
       }, 430);
     }
 
+    function triggerHomeBurst(target, kind) {
+      const rect = target.getBoundingClientRect();
+      const source = kind === 'heart'
+        ? 'assets/ui-raster/heart-pink.png'
+        : 'assets/ui-raster/star-yellow.png';
+      for (let i = 0; i < 7; i += 1) {
+        const particle = document.createElement('img');
+        const angle = (Math.PI * 2 * i) / 7 + rand(-0.18, 0.18);
+        const distance = rand(34, 76);
+        particle.className = 'home-burst';
+        particle.src = source;
+        particle.alt = '';
+        particle.style.left = `${rect.left + rect.width / 2}px`;
+        particle.style.top = `${rect.top + rect.height / 2}px`;
+        particle.style.setProperty('--bx', `${Math.cos(angle) * distance}px`);
+        particle.style.setProperty('--by', `${Math.sin(angle) * distance}px`);
+        particle.style.setProperty('--br', `${rand(-70, 70)}deg`);
+        particle.style.animationDelay = `${i * 18}ms`;
+        document.body.appendChild(particle);
+        window.setTimeout(() => particle.remove(), 850);
+      }
+    }
+
+    function getHomeSpriteAt(event) {
+      if (!homeCamera || !homeWorld.raycaster || !homeWorld.pointerNdc) return null;
+      const rect = renderer.domElement.getBoundingClientRect();
+      homeWorld.pointerNdc.set(
+        ((event.clientX - rect.left) / Math.max(1, rect.width)) * 2 - 1,
+        -((event.clientY - rect.top) / Math.max(1, rect.height)) * 2 + 1
+      );
+      homeWorld.raycaster.setFromCamera(homeWorld.pointerNdc, homeCamera);
+      const hits = homeWorld.raycaster.intersectObjects(homeWorld.interactiveSprites, false);
+      return hits.length ? hits[0].object : null;
+    }
+
+    function spawnHomeSpriteBurst(sprite) {
+      if (!sprite || !homeWorld.root) return;
+      const palette = {
+        heart: [0xff8fb5, 0xffd1e3, 0xffffff],
+        star: [0xffd166, 0xfff3ad, 0xffffff],
+        lollipop: [0xff8fba, 0xffd2e5, 0xffffff],
+        macaron: [0xffb3d9, 0xffb8dc, 0xfff4c7],
+        cloud: [0xffffff, 0xffdff0, 0xcde9ff]
+      }[sprite.userData.kind] || [0xffffff, 0xffc5dd, 0xffe9a8];
+      const worldPosition = new THREE.Vector3();
+      sprite.getWorldPosition(worldPosition);
+      const count = 22;
+      const positions = [];
+      const colors = [];
+      const velocities = [];
+      for (let i = 0; i < count; i += 1) {
+        positions.push(worldPosition.x, worldPosition.y, worldPosition.z + 0.3);
+        const color = new THREE.Color(palette[i % palette.length]);
+        colors.push(color.r, color.g, color.b);
+        const angle = rand(0, Math.PI * 2);
+        const speed = rand(1.1, 2.7);
+        velocities.push({ x: Math.cos(angle) * speed, y: rand(0.9, 2.7), z: Math.sin(angle) * speed * 0.45 });
+      }
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+      const material = new THREE.PointsMaterial({ size: 0.19, vertexColors: true, transparent: true, opacity: 1, depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: true });
+      const points = new THREE.Points(geometry, material);
+      const ring = new THREE.Mesh(new THREE.RingGeometry(0.32, 0.39, 32), new THREE.MeshBasicMaterial({ color: palette[0], transparent: true, opacity: 0.62, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending }));
+      ring.position.copy(worldPosition);
+      ring.lookAt(homeCamera.position);
+      homeWorld.root.add(points, ring);
+      homeWorld.bursts.push({ points, ring, velocities, age: 0 });
+    }
+
+    function updateHomePointer(event) {
+      if (game.phase !== 'title') return;
+      homeWorld.hoveredSprite = getHomeSpriteAt(event);
+      document.body.style.cursor = homeWorld.hoveredSprite ? 'pointer' : '';
+    }
+
+    function handleHomeSpritePointer(event) {
+      if (game.phase !== 'title') return;
+      if (event.target && event.target.closest && event.target.closest('button')) return;
+      const sprite = getHomeSpriteAt(event);
+      if (!sprite) return;
+      ensureAudio();
+      spawnHomeSpriteBurst(sprite);
+    }
+
+    let homeTransitioning = false;
+
+    function runHomeAction(action) {
+      if (homeTransitioning) return;
+      homeTransitioning = true;
+      dom.title.classList.add('home-leaving');
+      window.setTimeout(() => {
+        dom.title.classList.remove('home-leaving');
+        homeTransitioning = false;
+        action();
+      }, 240);
+    }
+
+    function bindHomeStage() {
+      if (!dom.title) return;
+      window.addEventListener('pointermove', (event) => {
+        const px = (event.clientX / (window.innerWidth || 1)) * 2 - 1;
+        const py = (event.clientY / (window.innerHeight || 1)) * 2 - 1;
+        dom.title.style.setProperty('--home-px', px.toFixed(3));
+        dom.title.style.setProperty('--home-py', py.toFixed(3));
+        homeWorld.pointerX = px;
+        homeWorld.pointerY = py;
+        updateHomePointer(event);
+      }, { passive: true });
+      window.addEventListener('pointerdown', handleHomeSpritePointer);
+      dom.title.querySelectorAll('[data-home-hotspot]').forEach((hotspot) => {
+        hotspot.addEventListener('click', () => {
+          ensureAudio();
+          triggerHomeBurst(hotspot, hotspot.dataset.homeHotspot || 'star');
+        });
+      });
+      const entry = dom.title.querySelector('.home-entry');
+      if (entry) {
+        entry.addEventListener('mouseenter', () => dom.title.classList.add('home-entry-focused'));
+        entry.addEventListener('mouseleave', () => dom.title.classList.remove('home-entry-focused'));
+      }
+      dom.splash.querySelectorAll('.splash-candy').forEach((candy) => {
+        candy.addEventListener('pointerdown', (event) => {
+          event.stopPropagation();
+          ensureAudio();
+          triggerHomeBurst(candy, candy.dataset.homeHotspot || 'heart');
+        });
+        candy.addEventListener('click', (event) => event.stopPropagation());
+      });
+    }
+
     function showToast(title, detail = '', tone = 'gold') {
       netQueueEvent({ t: 'toast', a: title, b: detail, c: tone });
       const toast = document.createElement('div');
@@ -3011,6 +3435,8 @@
     let THREE = null;
     let renderer = null;
     let scene = null;
+    let homeScene = null;
+    let homeCamera = null;
     let camera = null;
     let camera2 = null;
     let sunLight = null;
@@ -3027,6 +3453,35 @@
     let finishGate = null;
     let startGate = null;
     let animationFrame = 0;
+
+    const homeWorld = {
+      root: null,
+      sprites: [],
+      particles: null,
+      particleBase: null,
+      backdrop: null,
+      cameraTarget: null,
+      cameraLook: null,
+      pointerX: 0,
+      pointerY: 0,
+      time: 0,
+      textureLoader: null,
+      shaderMaterials: [],
+      bobbers: [],
+      rainbowGroup: null,
+      crystalGroup: null,
+      clouds: [],
+      coins: [],
+      candies: [],
+      road: null,
+      roadStripes: [],
+      interactiveSprites: [],
+      bursts: [],
+      raycaster: null,
+      pointerNdc: null,
+      hoveredSprite: null,
+      ready: false
+    };
 
     const world = {
       collectibles: [],
@@ -3409,6 +3864,7 @@
       world.directionalTarget = sunLight.target;
 
       createMaterials();
+      createHomeScene();
       window.addEventListener('resize', onResize, { passive: true });
     }
 
@@ -3479,6 +3935,192 @@
       materials.previewLocked = new THREE.MeshStandardMaterial({ color: 0x9d99aa, roughness: 0.9 });
     }
 
+    function createHomeScene() {
+      homeScene = new THREE.Scene();
+      homeScene.background = new THREE.Color(0xf3d8e6);
+      homeScene.fog = new THREE.Fog(0xf3cfe0, 52, 150);
+      homeCamera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 180);
+      homeCamera.position.set(0, 5.35, 18.5);
+      homeCamera.lookAt(0, 3.55, -20);
+      homeWorld.root = new THREE.Group();
+      homeWorld.cameraTarget = new THREE.Vector3(0, 5.35, 18.5);
+      homeWorld.cameraLook = new THREE.Vector3(0, 3.55, -20);
+      homeWorld.shaderMaterials = [];
+      homeWorld.clouds = [];
+      homeWorld.coins = [];
+      homeWorld.interactiveSprites = [];
+      homeWorld.bursts = [];
+      homeWorld.raycaster = new THREE.Raycaster();
+      homeWorld.pointerNdc = new THREE.Vector2();
+      homeWorld.textureLoader = new THREE.TextureLoader();
+      homeWorld.candies = [];
+      homeWorld.roadStripes = [];
+      homeWorld.rainbowGroup = new THREE.Group();
+      homeScene.add(homeWorld.root);
+
+      const skyMaterial = new THREE.ShaderMaterial({
+        uniforms: { uTime: { value: 0 } },
+        vertexShader: `
+          varying vec2 vUv;
+          void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
+        `,
+        fragmentShader: `
+          uniform float uTime;
+          varying vec2 vUv;
+          void main() {
+            vec3 blue = vec3(0.31, 0.68, 0.91);
+            vec3 lilac = vec3(0.72, 0.69, 0.91);
+            vec3 pink = vec3(1.0, 0.60, 0.72);
+            vec3 cream = vec3(1.0, 0.88, 0.83);
+            float side = smoothstep(0.0, 1.0, vUv.x);
+            vec3 upper = mix(blue, pink, side * 0.72);
+            vec3 lower = mix(lilac, cream, smoothstep(0.05, 0.7, vUv.y));
+            vec3 color = mix(lower, upper, smoothstep(0.35, 1.0, vUv.y));
+            float sun = smoothstep(0.32, 0.0, distance(vUv, vec2(0.52, 0.59)));
+            color += vec3(1.0, 0.68, 0.55) * sun * 0.16;
+            float haze = 0.5 + 0.5 * sin(vUv.x * 5.0 + uTime * 0.025);
+            color += vec3(0.035, 0.025, 0.045) * haze * smoothstep(0.42, 0.95, vUv.y);
+            gl_FragColor = vec4(color, 1.0);
+          }
+        `,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+        toneMapped: false
+      });
+      // Oversized camera-facing shader plane: it must cover ultra-wide viewports without visible edges.
+      const sky = new THREE.Mesh(new THREE.PlaneGeometry(180, 120), skyMaterial);
+      sky.scale.set(3.6, 3.6, 1);
+      sky.position.set(0, 28, -82);
+      sky.frustumCulled = false;
+      homeWorld.root.add(sky);
+      homeWorld.shaderMaterials.push(skyMaterial);
+
+      homeWorld.root.add(new THREE.HemisphereLight(0xfff4f4, 0xc596b3, 2.7));
+      const sun = new THREE.DirectionalLight(0xfff2da, 3.3);
+      sun.position.set(-18, 26, 14);
+      homeWorld.root.add(sun);
+      const fill = new THREE.PointLight(0xffa9cf, 15, 48, 2);
+      fill.position.set(0, 5, 2);
+      homeWorld.root.add(fill);
+
+      const cloudVertex = `
+        uniform float uTime;
+        uniform float uDrift;
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          vec3 p = position;
+          p.x += sin(uTime * uDrift + position.y * 0.13) * 0.16;
+          p.y += cos(uTime * uDrift * 0.7 + position.x * 0.07) * 0.11;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+        }
+      `;
+      const cloudFragment = `
+        uniform float uTime;
+        uniform vec3 uColor;
+        uniform vec3 uShade;
+        varying vec2 vUv;
+        float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+        float noise(vec2 p) {
+          vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+          return mix(mix(hash(i), hash(i + vec2(1.0,0.0)), f.x), mix(hash(i + vec2(0.0,1.0)), hash(i + vec2(1.0,1.0)), f.x), f.y);
+        }
+        float fbm(vec2 p) {
+          float v = 0.0, a = 0.5;
+          for (int i = 0; i < 4; i++) { v += noise(p) * a; p = p * 2.0 + 1.7; a *= 0.5; }
+          return v;
+        }
+        void main() {
+          float n = fbm(vUv * vec2(5.4, 3.6) + vec2(uTime * 0.02, -uTime * 0.01));
+          float edge = smoothstep(0.0, 0.15, vUv.x) * (1.0 - smoothstep(0.82, 1.0, vUv.x));
+          edge *= smoothstep(0.0, 0.16, vUv.y) * (1.0 - smoothstep(0.78, 1.0, vUv.y));
+          float puff = smoothstep(0.22, 0.7, n);
+          float highlight = smoothstep(0.12, 0.65, 1.0 - distance(vUv, vec2(0.5, 0.52)));
+          vec3 color = mix(uShade, uColor, clamp(highlight + n * 0.28, 0.0, 1.0));
+          gl_FragColor = vec4(color, edge * (puff * 0.72 + highlight * 0.32));
+        }
+      `;
+      const addCloud = (x, y, z, w, h, color, shade, drift, opacity) => {
+        const material = new THREE.ShaderMaterial({
+          uniforms: { uTime: { value: 0 }, uDrift: { value: drift }, uColor: { value: new THREE.Color(color) }, uShade: { value: new THREE.Color(shade) } },
+          vertexShader: cloudVertex, fragmentShader: cloudFragment, transparent: true, depthWrite: false,
+          opacity, side: THREE.DoubleSide, fog: false
+        });
+        const cloud = new THREE.Mesh(new THREE.PlaneGeometry(w, h), material);
+        cloud.position.set(x, y, z);
+        cloud.userData.baseY = y;
+        cloud.userData.phase = rand(0, Math.PI * 2);
+        homeWorld.root.add(cloud);
+        homeWorld.clouds.push(cloud);
+        homeWorld.shaderMaterials.push(material);
+        return cloud;
+      };
+      addCloud(-12.5, 4.3, -17, 18, 8, 0xfff7f8, 0xf3b7d1, 0.16, 0.9);
+      addCloud(12.5, 4.8, -20, 19, 8.5, 0xfff7fa, 0xf4b6d1, -0.13, 0.9);
+      addCloud(-5.4, 1.1, -11, 25, 8.2, 0xfffcf5, 0xf7c8df, 0.1, 0.78);
+      addCloud(5.7, 1.0, -12, 25, 8.2, 0xfffcf5, 0xf4c2de, -0.09, 0.78);
+      addCloud(-15.2, -0.35, 3.4, 24, 7.8, 0xfffaf7, 0xf2c3d9, 0.08, 0.86);
+      addCloud(15.0, -0.2, 2.6, 24, 7.6, 0xfffaf7, 0xf1bed7, -0.07, 0.86);
+      addCloud(0.0, -1.0, -1.5, 31, 8.8, 0xfffdf6, 0xf5cadf, 0.05, 0.72);
+
+      const rainbowColors = [0xff809f, 0xffb16e, 0xffdf78, 0xb7dd84, 0x7bd8d4, 0x87bcec, 0xa996e3];
+      rainbowColors.forEach((color, index) => {
+        const radius = 10.8 + index * 0.37;
+        const points = [];
+        for (let i = 0; i <= 32; i += 1) {
+          const t = i / 32;
+          const angle = Math.PI * (1.06 - t * 0.98);
+          points.push(new THREE.Vector3(Math.cos(angle) * radius, 2.1 + Math.sin(angle) * radius * 0.56, -24.5 - index * 0.06));
+        }
+        const curve = new THREE.CatmullRomCurve3(points);
+        const material = new THREE.MeshPhysicalMaterial({ color, emissive: color, emissiveIntensity: 0.12, roughness: 0.34, clearcoat: 0.7, clearcoatRoughness: 0.18 });
+        const band = new THREE.Mesh(new THREE.TubeGeometry(curve, 90, 0.22, 12, false), material);
+        homeWorld.rainbowGroup.add(band);
+      });
+      homeWorld.rainbowGroup.position.y = 1.1;
+      homeWorld.root.add(homeWorld.rainbowGroup);
+
+
+
+      const addMacaron = (x, y, z, color, scale) => {
+        const group = new THREE.Group(); group.position.set(x,y,z); group.scale.setScalar(scale);
+        const shell = new THREE.MeshPhysicalMaterial({ color, roughness:0.52, clearcoat:0.18, clearcoatRoughness:0.3 });
+        const creamMat = new THREE.MeshPhysicalMaterial({ color:0xfff1dc, roughness:0.62, clearcoat:0.12 });
+        const top = new THREE.Mesh(new THREE.CylinderGeometry(0.92,0.92,0.35,40), shell);
+        const filling = new THREE.Mesh(new THREE.CylinderGeometry(0.82,0.82,0.22,40), creamMat);
+        const bottom = top.clone(); top.position.y=0.34; bottom.position.y=-0.34; group.add(top,filling,bottom);
+        group.userData.baseY=y; group.userData.phase=rand(0,Math.PI*2); group.userData.spin=rand(-0.2,0.2); homeWorld.root.add(group); homeWorld.candies.push(group);
+      };
+      addMacaron(8.4, 0.02, -13.5, 0xdca5e9, 0.64);
+
+      const positions=[]; const colors=[]; const sizes=[]; const phases=[];
+      const palette=[0xfff3ad,0xffffff,0xffa9c7,0x9fe3ef,0xffc879];
+      for(let i=0;i<300;i+=1){ positions.push(rand(-23,23),rand(1.2,14),rand(-44,5)); const c=new THREE.Color(palette[i%palette.length]); colors.push(c.r,c.g,c.b); sizes.push(rand(0.55,1.8)); phases.push(rand(0,Math.PI*2)); }
+      const particleGeometry=new THREE.BufferGeometry(); particleGeometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3)); particleGeometry.setAttribute('aColor',new THREE.Float32BufferAttribute(colors,3)); particleGeometry.setAttribute('aSize',new THREE.Float32BufferAttribute(sizes,1)); particleGeometry.setAttribute('aPhase',new THREE.Float32BufferAttribute(phases,1));
+      const particleMaterial=new THREE.ShaderMaterial({uniforms:{uTime:{value:0}},vertexShader:`uniform float uTime; attribute vec3 aColor; attribute float aSize; attribute float aPhase; varying vec3 vColor; varying float vAlpha; void main(){vColor=aColor;vAlpha=.65+.35*sin(uTime*1.5+aPhase);vec4 mv=modelViewMatrix*vec4(position,1.);gl_PointSize=aSize*(230./max(1.,-mv.z))*vAlpha;gl_Position=projectionMatrix*mv;}`,fragmentShader:`varying vec3 vColor; varying float vAlpha; void main(){vec2 p=gl_PointCoord-.5;float a=smoothstep(.24,0.,dot(p,p))*vAlpha;gl_FragColor=vec4(vColor,a);}`,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false});
+      homeWorld.particles=new THREE.Points(particleGeometry,particleMaterial); homeWorld.root.add(homeWorld.particles); homeWorld.shaderMaterials.push(particleMaterial);
+      homeWorld.ready = true;
+    }
+
+    function addHomeSprite(path, width, height, x, y, z, opacity = 1, kind = '') {
+      const material = new THREE.SpriteMaterial({ color: 0xffffff, transparent: true, opacity, depthWrite: false, fog: true });
+      const sprite = new THREE.Sprite(material);
+      sprite.position.set(x, y, z);
+      sprite.scale.set(width, height, 1);
+      sprite.userData.baseY = y;
+      sprite.userData.phase = rand(0, Math.PI * 2);
+      sprite.userData.kind = kind;
+      homeWorld.root.add(sprite);
+      homeWorld.sprites.push(sprite);
+      homeWorld.textureLoader.load(path, (texture) => {
+        texture.colorSpace = THREE.SRGBColorSpace;
+        texture.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
+        material.map = texture;
+        material.needsUpdate = true;
+      });
+      return sprite;
+    }
+
     function createWorld() {
       createSky();
       createPath();
@@ -3532,6 +4174,11 @@
       renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
       renderer.setSize(window.innerWidth, window.innerHeight);
       updateCameraAspects();
+      if (homeCamera) {
+        homeCamera.aspect = (window.innerWidth || 1) / (window.innerHeight || 1);
+        homeCamera.fov = homeCamera.aspect < 0.78 ? 47 : 38;
+        homeCamera.updateProjectionMatrix();
+      }
     }
 
     function updateCameraAspects() {
@@ -6652,8 +7299,15 @@
 
     function bindUI() {
       setupInkBlobs();
-      dom.single.addEventListener('click', () => { ensureAudio(); startSingleMode(); });
-      dom.duo.addEventListener('click', () => { ensureAudio(); startDuoMode(); });
+      bindHomeStage();
+      dom.single.addEventListener('click', () => {
+        ensureAudio();
+        runHomeAction(startSingleMode);
+      });
+      dom.duo.addEventListener('click', () => {
+        ensureAudio();
+        runHomeAction(startDuoMode);
+      });
       dom.talentButton.addEventListener('click', () => { ensureAudio(); setPhase('talent'); });
       dom.skinMenuButton.addEventListener('click', () => {
         ensureAudio();
@@ -6668,8 +7322,10 @@
       if (dom.difficultyBack) dom.difficultyBack.addEventListener('click', () => { netTeardownToTitle(); returnToTitle(); });
       dom.lanButton.addEventListener('click', () => {
         ensureAudio();
-        netSetStatus('在线房间：朋友点链接即可加入；也可以在本机运行 server.py 做局域网直连。');
-        setPhase('lan');
+        runHomeAction(() => {
+          netSetStatus('在线房间：朋友点链接即可加入；也可以在本机运行 server.py 做局域网直连。');
+          setPhase('lan');
+        });
       });
       if (dom.lanHostBtn) dom.lanHostBtn.addEventListener('click', () => { ensureAudio(); startLanHost(); });
       if (dom.lanJoinBtn) dom.lanJoinBtn.addEventListener('click', () => { ensureAudio(); startLanGuest(dom.lanRoomInput ? dom.lanRoomInput.value : ''); });
@@ -8797,6 +9453,64 @@
       recordCameraMotion();
     }
 
+    function updateHomeScene(dt) {
+      if (!homeWorld.ready || !homeCamera) return;
+      homeWorld.time += dt;
+      const aspect = (window.innerWidth || 1) / (window.innerHeight || 1);
+      homeCamera.fov = aspect < 0.78 ? 47 : 40;
+      homeCamera.updateProjectionMatrix();
+      const pointerX = homeWorld.pointerX || 0;
+      const pointerY = homeWorld.pointerY || 0;
+      homeWorld.cameraTarget.set(pointerX * 1.15, 5.35 + pointerY * 0.28, 18.5 + Math.abs(pointerY) * 0.18);
+      homeCamera.position.lerp(homeWorld.cameraTarget, 1 - Math.exp(-dt * 3.4));
+      homeWorld.cameraLook.set(pointerX * 0.36, 3.55 + pointerY * 0.16, -20);
+      homeCamera.lookAt(homeWorld.cameraLook);
+      homeWorld.shaderMaterials.forEach((material) => { if (material.uniforms && material.uniforms.uTime) material.uniforms.uTime.value = homeWorld.time; });
+      homeWorld.clouds.forEach((cloud) => { cloud.position.y = cloud.userData.baseY + Math.sin(homeWorld.time * 0.24 + cloud.userData.phase) * 0.1; });
+      homeWorld.rainbowGroup.rotation.y = pointerX * 0.012;
+      homeWorld.rainbowGroup.position.y = 1.1 + Math.sin(homeWorld.time * 0.24) * 0.08;
+      homeWorld.coins.forEach((coin) => { coin.rotation.y += dt * coin.userData.spin; coin.position.y = coin.userData.baseY + Math.sin(homeWorld.time * 0.7 + coin.userData.phase) * 0.16; });
+      homeWorld.candies.forEach((item) => { item.position.y = item.userData.baseY + Math.sin(homeWorld.time * 0.52 + item.userData.phase) * 0.12; item.rotation.y += dt * (item.userData.spin || 0.02); });
+      homeWorld.interactiveSprites.forEach((sprite) => {
+        const hover = sprite === homeWorld.hoveredSprite ? 1 : 0;
+        sprite.userData.hover += (hover - sprite.userData.hover) * Math.min(1, dt * 10);
+        sprite.position.x = sprite.userData.baseX + pointerX * sprite.userData.parallax;
+        sprite.position.y = sprite.userData.baseY + Math.sin(homeWorld.time * 0.55 + sprite.userData.phase) * 0.13 + pointerY * sprite.userData.parallax * 0.3;
+        sprite.rotation.z = Math.sin(homeWorld.time * 0.42 + sprite.userData.phase) * 0.035 + pointerX * 0.012;
+        const pulse = 1 + sprite.userData.hover * 0.08;
+        sprite.scale.set(sprite.userData.baseWidth * pulse, sprite.userData.baseHeight * pulse, 1);
+        if (sprite.material.uniforms) {
+          sprite.material.uniforms.uTime.value = homeWorld.time;
+          sprite.material.uniforms.uHover.value = sprite.userData.hover;
+        }
+      });
+      homeWorld.bursts = homeWorld.bursts.filter((burst) => {
+        burst.age += dt;
+        const positions = burst.points.geometry.attributes.position.array;
+        burst.velocities.forEach((velocity, index) => {
+          const offset = index * 3;
+          velocity.y -= dt * 1.7;
+          positions[offset] += velocity.x * dt;
+          positions[offset + 1] += velocity.y * dt;
+          positions[offset + 2] += velocity.z * dt;
+        });
+        burst.points.geometry.attributes.position.needsUpdate = true;
+        const life = Math.max(0, 1 - burst.age / 0.95);
+        burst.points.material.opacity = life;
+        burst.ring.scale.setScalar(1 + (1 - life) * 2.3);
+        burst.ring.material.opacity = life * 0.62;
+        if (life <= 0) {
+          homeWorld.root.remove(burst.points, burst.ring);
+          burst.points.geometry.dispose();
+          burst.points.material.dispose();
+          burst.ring.geometry.dispose();
+          burst.ring.material.dispose();
+          return false;
+        }
+        return true;
+      });
+    }
+
     function updateWorldVisuals(dt) {
       updateObstacles(dt);
       updateCollectibles(dt);
@@ -8894,7 +9608,8 @@
         }
       }
 
-      updateWorldVisuals(game.paused ? 0 : dt);
+      if (game.phase === 'title') updateHomeScene(game.paused ? 0 : dt);
+      else updateWorldVisuals(game.paused ? 0 : dt);
       updateSplitScreenState(dt);
       game.hudTimer = (game.hudTimer || 0) + dt;
       if (game.hudTimer >= 0.1) {
@@ -8924,10 +9639,22 @@
       }
     }
 
+    function renderHomeFrame(width, height) {
+      renderer.setViewport(0, 0, width, height);
+      renderer.setScissor(0, 0, width, height);
+      renderer.setScissorTest(false);
+      renderer.autoClear = true;
+      renderer.render(homeScene, homeCamera);
+    }
+
     function renderFrame() {
       if (!renderer) return;
       const width = window.innerWidth || 1;
       const height = window.innerHeight || 1;
+      if (game.phase === 'title' && homeScene && homeCamera) {
+        renderHomeFrame(width, height);
+        return;
+      }
       const ink1 = inkAmountFor(players[0]);
       const ink2 = game.mode === 'duo' ? inkAmountFor(players[1]) : 0;
       if (game.splitScreen && camera2) {
@@ -9463,6 +10190,7 @@
     }
 
     (async () => {
+      if (window.__DREAMDASH_FILE_MODE__) return;
       try {
         const threeModule = await loadThreeWithFallback();
         boot(threeModule);
